@@ -1,0 +1,318 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NextGen Discover | Welcome</title>
+  <link rel="stylesheet" href="css/style.css">
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: system-ui, sans-serif;
+      background: linear-gradient(135deg, #7c3aed, #ec4899, #f97316);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      color: #292044;
+      padding: 20px;
+    }
+
+    .welcome-card {
+      position: relative;
+      z-index: 2;
+      width: min(100%, 520px);
+      padding: 35px 25px;
+      text-align: center;
+      background: #fffdf7;
+      border: 5px solid white;
+      border-radius: 35px;
+      box-shadow: 0 25px 60px rgba(35, 10, 70, 0.3);
+      animation: appear 0.8s ease;
+    }
+
+    .brand {
+      color: #7c3aed;
+      font-weight: 900;
+      letter-spacing: 2px;
+      font-size: 14px;
+    }
+
+    h1 {
+      font-size: clamp(25px, 6vw, 36px);
+      margin: 12px 0;
+      color: #4c1d95;
+    }
+
+    .subtitle {
+      color: #786b8d;
+      line-height: 1.6;
+    }
+
+    /* Original cartoon character */
+
+    .character {
+      width: 190px;
+      height: 190px;
+      margin: 25px auto;
+      position: relative;
+      animation: float 2.5s ease-in-out infinite;
+    }
+
+    .body-character {
+      position: absolute;
+      width: 150px;
+      height: 150px;
+      background: #ffd84d;
+      border: 5px solid #292044;
+      border-radius: 45% 45% 48% 48%;
+      left: 20px;
+      top: 20px;
+      box-shadow: 0 12px 0 #f0ad35;
+    }
+
+    .eye {
+      position: absolute;
+      top: 47px;
+      width: 17px;
+      height: 25px;
+      background: #292044;
+      border-radius: 50%;
+    }
+
+    .eye.left {
+      left: 42px;
+    }
+
+    .eye.right {
+      right: 42px;
+    }
+
+    .cheek {
+      position: absolute;
+      top: 83px;
+      width: 22px;
+      height: 12px;
+      background: #ff8c9e;
+      border-radius: 50%;
+    }
+
+    .cheek.left {
+      left: 20px;
+    }
+
+    .cheek.right {
+      right: 20px;
+    }
+
+    .mouth {
+      position: absolute;
+      width: 40px;
+      height: 20px;
+      left: 50px;
+      top: 82px;
+      border-bottom: 5px solid #292044;
+      border-radius: 50%;
+    }
+
+    .arm {
+      position: absolute;
+      width: 45px;
+      height: 15px;
+      background: #ffd84d;
+      border: 4px solid #292044;
+      border-radius: 20px;
+      top: 105px;
+    }
+
+    .arm.left {
+      left: -8px;
+      transform: rotate(35deg);
+    }
+
+    .arm.right {
+      right: -8px;
+      transform: rotate(-35deg);
+    }
+
+    .sparkle {
+      position: absolute;
+      font-size: 30px;
+      animation: twinkle 1.5s infinite alternate;
+    }
+
+    .sparkle.one {
+      top: 5px;
+      right: 0;
+    }
+
+    .sparkle.two {
+      bottom: 10px;
+      left: 0;
+    }
+
+    .actions {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 25px;
+    }
+
+    .btn {
+      width: auto;
+      min-width: 135px;
+      padding: 13px 22px;
+      border: 0;
+      border-radius: 30px;
+      font-size: 15px;
+      font-weight: 800;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .btn:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 8px 15px rgba(0,0,0,0.15);
+    }
+
+    .dashboard {
+      background: #7c3aed;
+      color: white;
+    }
+
+    .logout {
+      background: #ffe1e8;
+      color: #be123c;
+    }
+
+    .decoration {
+      position: fixed;
+      z-index: 1;
+      font-size: 42px;
+      animation: float 3s ease-in-out infinite;
+      pointer-events: none;
+    }
+
+    .d1 { top: 10%; left: 10%; }
+    .d2 { top: 15%; right: 12%; animation-delay: .5s; }
+    .d3 { bottom: 12%; left: 12%; animation-delay: 1s; }
+    .d4 { bottom: 10%; right: 10%; animation-delay: .8s; }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-12px); }
+    }
+
+    @keyframes twinkle {
+      from { transform: scale(.8) rotate(-10deg); }
+      to { transform: scale(1.2) rotate(10deg); }
+    }
+
+    @keyframes appear {
+      from { opacity: 0; transform: scale(.9); }
+      to { opacity: 1; transform: scale(1); }
+    }
+
+    @media (max-width: 480px) {
+      .welcome-card {
+        padding: 28px 18px;
+      }
+
+      .decoration {
+        font-size: 27px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="decoration d1">⭐</div>
+  <div class="decoration d2">🌈</div>
+  <div class="decoration d3">☁️</div>
+  <div class="decoration d4">🎈</div>
+
+  <main class="welcome-card">
+
+    <div class="brand">NEXTGEN DISCOVER</div>
+
+    <h1 id="welcome">Welcome!</h1>
+
+    <p class="subtitle">
+      Your next adventure starts here.<br>
+      Ready to explore a world of imagination?
+    </p>
+
+    <div class="character" aria-label="Original smiling cartoon character">
+      <div class="sparkle one">✨</div>
+      <div class="sparkle two">⭐</div>
+
+      <div class="arm left"></div>
+      <div class="arm right"></div>
+
+      <div class="body-character">
+        <div class="eye left"></div>
+        <div class="eye right"></div>
+        <div class="cheek left"></div>
+        <div class="cheek right"></div>
+        <div class="mouth"></div>
+      </div>
+    </div>
+
+    <h2>Well, well... Look who logged in! 🎉</h2>
+
+    <p class="subtitle">
+      Discover fictional worlds, colourful characters
+      and amazing adventures.
+    </p>
+
+    <div class="actions">
+      <button class="btn dashboard" onclick="goDashboard()">
+        Explore Now 🚀
+      </button>
+
+      <button class="btn logout" onclick="logout()">
+        Logout
+      </button>
+    </div>
+
+  </main>
+
+  <script>
+    const token = localStorage.getItem("token");
+
+    if (!token) {
+      location.href = "index.html";
+    } else {
+      try {
+        const payload = JSON.parse(atob(token.split(".")[1]));
+
+        document.getElementById("welcome").innerText =
+          `Welcome, ${payload.sub}!`;
+      } catch (error) {
+        localStorage.removeItem("token");
+        location.href = "index.html";
+      }
+    }
+
+    function logout() {
+      localStorage.removeItem("token");
+      location.href = "index.html";
+    }
+
+    function goDashboard() {
+      location.href = "dashboard.html";
+    }
+  </script>
+
+</body>
+</html>
+

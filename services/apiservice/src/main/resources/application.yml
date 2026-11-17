@@ -1,0 +1,17 @@
+server:
+  port: ${SERVER_PORT:9000}
+
+auth:
+  url: ${AUTHSERVICE_URL:http://localhost:9001}
+
+user:
+  url: ${USERSERVICE_URL:http://localhost:9002}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      show-details: always

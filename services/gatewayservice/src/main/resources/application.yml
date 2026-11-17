@@ -1,0 +1,55 @@
+
+server:
+  port: ${SERVER_PORT:9003}
+
+jwt:
+  secret-base64: ${JWT_SECRET_BASE64}
+
+spring:
+  application:
+    name: gateway-service
+
+  cloud:
+    gateway:
+      server:
+        webflux:
+          globalcors:
+            add-to-simple-url-handler-mapping: true
+            cors-configurations:
+              '[/**]':
+                allowedOrigins:
+                  - "http://localhost:9080"
+                allowedMethods:
+                  - GET
+                  - POST
+                  - PUT
+                  - DELETE
+                  - OPTIONS
+                allowedHeaders:
+                  - "*"
+                allowCredentials: false
+                maxAge: 3600
+
+          routes:
+            - id: api-service
+              uri: ${API_SERVICE_URL:http://localhost:9000}
+              predicates:
+                - Path=/api/**
+              filters:
+                - StripPrefix=1
+            - id: catalogue-service
+              uri: ${CATALOGUE_SERVICE_URL:http://localhost:9004}
+              predicates:
+                - Path=/catalogue/**
+              filters:
+                - StripPrefix=1
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
