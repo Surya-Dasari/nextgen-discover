@@ -17,6 +17,9 @@ public class User {
     @Column(nullable = false, length = 100)
     private String password;
 
+    @Column(length = 100)
+    private String name;
+
     public User() {
     }
 
@@ -38,6 +41,14 @@ public class User {
 
     public void setPassword(String password) {
         this.password = password;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
     }
 }
 

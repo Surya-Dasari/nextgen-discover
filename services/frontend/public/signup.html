@@ -10,8 +10,30 @@
 <div class="card">
   <h1>Create Account</h1>
 
-  <input id="email" type="email" placeholder="Email" autocomplete="email">
-  <input id="password" type="password" placeholder="Password" autocomplete="new-password">
+  <input
+    id="name"
+    type="text"
+    placeholder="Full Name"
+    autocomplete="name"
+    maxlength="100"
+    required
+  >
+
+  <input
+    id="email"
+    type="email"
+    placeholder="Email"
+    autocomplete="email"
+    required
+  >
+
+  <input
+    id="password"
+    type="password"
+    placeholder="Password"
+    autocomplete="new-password"
+    required
+  >
 
   <button onclick="signup()">Signup</button>
   <p id="msg"></p>

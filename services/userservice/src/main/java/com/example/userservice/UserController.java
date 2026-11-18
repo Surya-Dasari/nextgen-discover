@@ -14,6 +14,7 @@ import java.util.Optional;
 public class UserController {
 
     private final UserRepository repo;
+
     private final PasswordEncoder passwordEncoder =
             new BCryptPasswordEncoder();
 
@@ -25,13 +26,23 @@ public class UserController {
     @PostMapping("/users")
     public ResponseEntity<String> create(@RequestBody User user) {
 
-        if (user.getEmail() == null || user.getEmail().isBlank()
+        if (user.getName() == null || user.getName().isBlank()
+                || user.getEmail() == null || user.getEmail().isBlank()
                 || user.getPassword() == null || user.getPassword().isBlank()) {
+
             return ResponseEntity.badRequest()
-                    .body("Email and password are required");
+                    .body("Name, email and password are required");
         }
 
+        String name = user.getName().trim();
         String email = user.getEmail().trim().toLowerCase(Locale.ROOT);
+
+        if (name.length() > 100) {
+            return ResponseEntity.badRequest()
+                    .body("Name must not exceed 100 characters");
+        }
+
+        user.setName(name);
         user.setEmail(email);
 
         if (repo.findByEmail(email).isPresent()) {
@@ -40,6 +51,7 @@ public class UserController {
         }
 
         user.setPassword(passwordEncoder.encode(user.getPassword()));
+
         repo.save(user);
 
         return ResponseEntity.status(HttpStatus.CREATED)

@@ -1,3 +1,4 @@
+
 # Node.js
 node_modules/
 npm-debug.log*
@@ -16,6 +17,36 @@ target/
 *.crt
 *.p12
 *.jks
+*.secret
+
+# Terraform working directories
+**/.terraform/
+
+# Terraform state and backups
+*.tfstate
+*.tfstate.*
+terraform.tfstate
+terraform.tfstate.backup
+
+# Terraform plans
+tfplan
+tfplan*
+*.tfplan
+*.plan
+
+# Terraform variable files (keep sanitized examples only)
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+!*.tfvars.json.example
+
+# Terraform crash logs and overrides
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
 
 # IDE
 .idea/
@@ -28,3 +59,4 @@ Thumbs.db
 
 # Logs
 *.log
+
