@@ -35,7 +35,7 @@ jobs:
         uses: gitleaks/gitleaks-action@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITLEAKS_ENABLE_COMMENTS: false
+          GITLEAKS_ENABLE_COMMENTS: "false"
 
       - name: Set up Java 17
         uses: actions/setup-java@v6
@@ -49,8 +49,18 @@ jobs:
           java -version
           mvn -version
 
-      - name: Build, test, security scan and generate SBOM
+      - name: Build, test, OWASP scan and generate SBOM
         run: mvn -B -ntp clean verify
+
+      - name: SonarQube Analysis and Quality Gate
+        run: >
+          mvn -B -ntp
+          org.sonarsource.scanner.maven:sonar-maven-plugin:5.8.0.7211:sonar
+          -Dsonar.organization=salaar
+          -Dsonar.projectKey=Surya-Dasari_nextgen-discover
+          -Dsonar.qualitygate.wait=true
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
       - name: Upload CycloneDX SBOM
         uses: actions/upload-artifact@v6
