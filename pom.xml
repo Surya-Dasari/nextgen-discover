@@ -21,15 +21,28 @@
     <version>1.0.0-SNAPSHOT</version>
     <packaging>pom</packaging>
 
-    <!-- Project Properties -->
+    <name>NextGen Discover Platform</name>
+    <description>NextGen Discover Microservices Platform</description>
+
+    <!-- Java and Spring Cloud Versions -->
     <properties>
         <java.version>17</java.version>
         <spring-cloud.version>2025.1.4</spring-cloud.version>
     </properties>
 
-    <!-- Spring Cloud Dependency Management -->
+    <!-- Maven Modules -->
+    <modules>
+        <module>services/authservice</module>
+        <module>services/userservice</module>
+        <module>services/apiservice</module>
+        <module>services/gatewayservice</module>
+        <module>services/catalogueservice</module>
+    </modules>
+
+    <!-- Dependency Management -->
     <dependencyManagement>
         <dependencies>
+
             <dependency>
                 <groupId>org.springframework.cloud</groupId>
                 <artifactId>spring-cloud-dependencies</artifactId>
@@ -37,39 +50,36 @@
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
+
         </dependencies>
     </dependencyManagement>
 
-    <!-- Application Modules -->
-    <modules>
-        <module>services/authservice</module>
-        <module>services/userservice</module>
-	<module>services/apiservice</module>
-	<module>services/gatewayservice</module>
-        <module>services/catalogueservice</module>
-    </modules>
-
-    <!-- Nexus Repository Configuration -->
+    <!-- Nexus Publishing Configuration -->
     <distributionManagement>
+
         <repository>
             <id>nextgen-maven-releases</id>
-            <url>http://localhost:8081/repository/nextgen-maven-releases/</url>
+            <url>http://localhost:8081/repository/maven-releases/</url>
         </repository>
 
         <snapshotRepository>
             <id>nextgen-maven-snapshots</id>
-            <url>http://localhost:8081/repository/nextgen-maven-snapshots/</url>
+            <url>http://localhost:8081/repository/maven-snapshots/</url>
         </snapshotRepository>
+
     </distributionManagement>
 
-    <!-- Build Configuration -->
     <build>
+
+        <!-- Plugin Version Management -->
         <pluginManagement>
             <plugins>
+
                 <plugin>
                     <groupId>org.jacoco</groupId>
                     <artifactId>jacoco-maven-plugin</artifactId>
                     <version>0.8.10</version>
+
                     <executions>
                         <execution>
                             <goals>
@@ -86,8 +96,71 @@
                         </execution>
                     </executions>
                 </plugin>
+
             </plugins>
         </pluginManagement>
+
+        <!-- Active Plugins -->
+        <plugins>
+
+            <!-- OWASP Dependency Security Scan -->
+            <plugin>
+                <groupId>org.owasp</groupId>
+                <artifactId>dependency-check-maven</artifactId>
+                <version>13.0.0</version>
+
+                <configuration>
+                    <nvdApiKeyEnvironmentVariable>
+                        NVD_API_KEY
+                    </nvdApiKeyEnvironmentVariable>
+
+                    <failBuildOnCVSS>7.0</failBuildOnCVSS>
+                    <failOnError>true</failOnError>
+
+                    <formats>
+                        <format>HTML</format>
+                        <format>JSON</format>
+                    </formats>
+                </configuration>
+
+                <executions>
+                    <execution>
+                        <id>dependency-security-scan</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>aggregate</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- CycloneDX SBOM Generation -->
+            <plugin>
+                <groupId>org.cyclonedx</groupId>
+                <artifactId>cyclonedx-maven-plugin</artifactId>
+                <version>2.9.3</version>
+
+                <configuration>
+                    <projectType>application</projectType>
+                    <outputFormat>json</outputFormat>
+                    <outputName>bom</outputName>
+                    <includeTestScope>false</includeTestScope>
+                    <outputReactorProjects>true</outputReactorProjects>
+                </configuration>
+
+                <executions>
+                    <execution>
+                        <id>generate-sbom</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>makeAggregateBom</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
+        </plugins>
+
     </build>
 
 </project>
