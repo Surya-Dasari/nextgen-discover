@@ -19,8 +19,11 @@ concurrency:
 
 jobs:
   build-and-test:
-    name: Build and Test
+    name: Build, Test and Security Scan
     runs-on: ubuntu-latest
+
+    env:
+      NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
 
     steps:
       - name: Checkout source code
@@ -38,5 +41,14 @@ jobs:
           java -version
           mvn -version
 
-      - name: Build and run unit tests
+      - name: Build, test, security scan and generate SBOM
         run: mvn -B -ntp clean verify
+
+      - name: Upload CycloneDX SBOM
+        uses: actions/upload-artifact@v6
+        with:
+          name: nextgen-discover-sbom
+          path: target/bom.json
+          if-no-files-found: error
+          retention-days: 30
+
