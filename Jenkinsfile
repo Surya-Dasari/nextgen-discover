@@ -71,11 +71,15 @@ pipeline {
             }
         }
 
-        stage('Terraform Backend Bootstrap & Init') {
+        stage('Terraform Init') {
             steps {
-                sh '''
-                    bash scripts/setup-terraform-backend.sh "$AWS_REGION"
-                '''
+                dir('infrastructure/terraform/infrastructure') {
+                    sh '''
+                        terraform init \
+                          -input=false \
+                          -lockfile=readonly
+                    '''
+                }
             }
         }
 
