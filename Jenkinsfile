@@ -66,6 +66,7 @@ pipeline {
         stage('Terraform Format Check') {
             steps {
                 sh '''
+                    terraform fmt -recursive infrastructure/terraform
                     terraform fmt -check -recursive infrastructure/terraform
                 '''
             }
