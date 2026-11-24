@@ -144,6 +144,13 @@ pipeline {
 
                         echo "SUCCESS: JWT public key retrieved."
 
+                        # Supply JWT validation claims required by Terraform.
+                        export TF_VAR_jwt_issuer="nextgen-discover-auth"
+                        export TF_VAR_jwt_audience="nextgen-discover-api"
+
+                        echo "SUCCESS: JWT issuer and audience configured."
+
+
                         terraform plan \\
                           -input=false \\
                           -no-color \\
