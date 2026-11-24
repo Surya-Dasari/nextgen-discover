@@ -71,6 +71,23 @@ pipeline {
             }
         }
 
+        stage('Terraform Security Scan') {
+            steps {
+                sh '''
+                    set -eu
+
+                    echo "===== TERRAFORM SECURITY SCAN ====="
+
+                    trivy config \\
+                      --severity HIGH,CRITICAL \\
+                      --exit-code 1 \\
+                      infrastructure/terraform/infrastructure
+
+                    echo "SUCCESS: Terraform security scan completed."
+                '''
+            }
+        }
+
         stage('Terraform Backend Readiness Check') {
             steps {
                 sh '''
