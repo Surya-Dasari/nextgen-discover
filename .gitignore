@@ -34,8 +34,9 @@ tfplan*
 *.tfplan
 *.plan
 
-# Terraform variable files (keep sanitized examples only)
+# Terraform variable files (allow only reviewed non-sensitive configuration)
 *.tfvars
+!infrastructure/terraform/infrastructure/terraform.tfvars
 *.tfvars.json
 !*.tfvars.example
 !*.tfvars.json.example
