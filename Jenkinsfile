@@ -106,6 +106,39 @@ pipeline {
                 }
             }
         }
+
+        stage('Terraform Apply Approval') {
+            steps {
+                timeout(time: 30, unit: 'MINUTES') {
+                    input(
+                        message: 'Review the Terraform plan. Approve to create or modify AWS infrastructure?',
+                        ok: 'Approve Terraform Apply'
+                    )
+                }
+            }
+        }
+
+        stage('Terraform Apply') {
+            steps {
+                dir('infrastructure/terraform/infrastructure') {
+                    sh """
+                        set -eu
+
+                        if [ ! -f tfplan ]; then
+                            echo "ERROR: Terraform plan file not found."
+                            exit 1
+                        fi
+
+                        terraform apply \
+                          -input=false \
+                          -no-color \
+                          -lock-timeout=5m \
+                          tfplan
+                    """
+                }
+            }
+        }
+
     }
 
     post {
