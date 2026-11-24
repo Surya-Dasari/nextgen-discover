@@ -60,3 +60,9 @@ Thumbs.db
 # Logs
 *.log
 
+
+# Docker build staging artifacts
+app.jar
+
+# Terraform backend configuration
+/infrastructure/terraform/infrastructure/backend.hcl
