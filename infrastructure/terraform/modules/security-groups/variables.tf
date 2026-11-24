@@ -19,6 +19,11 @@ variable "vpc_id" {
   }
 }
 
+variable "vpc_cidr" {
+  description = "IPv4 CIDR block of the VPC"
+  type        = string
+}
+
 variable "alb_ingress_cidrs" {
   description = "IPv4 CIDR ranges allowed to access the private ALB"
   type        = list(string)

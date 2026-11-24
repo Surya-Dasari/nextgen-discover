@@ -51,8 +51,9 @@ module "vpc" {
 module "security_groups" {
   source = "../modules/security-groups"
 
-  name   = "${var.project_name}-sg"
-  vpc_id = module.vpc.vpc_id
+  name     = "${var.project_name}-sg"
+  vpc_id   = module.vpc.vpc_id
+  vpc_cidr = module.vpc.vpc_cidr
 
   alb_ingress_cidrs = []
 
@@ -124,14 +125,15 @@ module "ecr" {
 
   repository_names = [
     "frontend",
-    "gateway",
     "api",
     "auth",
     "user",
-    "catalogue"
+    "notification",
+    "catalogue",
+    "database-bootstrap"
   ]
 
-  image_tag_mutability = "IMMUTABLE"
+  image_tag_mutability = "MUTABLE"
   scan_on_push         = true
 
   kms_key_arn = module.kms.kms_key_arn
@@ -170,9 +172,9 @@ module "eks" {
   node_instance_types = ["c7i-flex.large"]
   node_capacity_type  = "ON_DEMAND"
 
-  node_min_size     = 1
-  node_desired_size = 2
-  node_max_size     = 3
+  node_min_size     = 3
+  node_desired_size = 4
+  node_max_size     = 5
   node_disk_size    = 30
 
   tags = {
@@ -223,15 +225,38 @@ module "rds" {
 }
 
 # --------------------------------------------------
-# NextGen Discover API Gateway and AWS WAF
+# NextGen Discover JWT Lambda Authorizer
 # --------------------------------------------------
 
+module "lambda_authorizer" {
+  source = "../modules/lambda-authorizer"
+
+  project_name       = var.project_name
+  jwt_public_key_pem = var.jwt_public_key_pem
+  jwt_issuer         = var.jwt_issuer
+  jwt_audience       = var.jwt_audience
+
+  tags = {
+    Project   = var.project_name
+    Component = "jwt-authorizer"
+  }
+}
+
+# --------------------------------------------------
+# NextGen Discover API Gateway and AWS WAF
+# --------------------------------------------------
 module "api_gateway_waf" {
   source = "../modules/api-gateway-waf"
 
   project_name = var.project_name
 
-  private_subnet_ids = values(module.vpc.private_app_subnet_ids)
+  enable_api_integrations = var.enable_api_integrations
+
+  lambda_authorizer_function_arn = module.lambda_authorizer.lambda_function_arn
+  lambda_authorizer_invoke_arn   = module.lambda_authorizer.lambda_invoke_arn
+  private_subnet_ids             = values(module.vpc.private_app_subnet_ids)
+  api_alb_arn                    = var.api_alb_arn
+  api_alb_dns_name               = var.api_alb_dns_name
 
   vpc_link_security_group_id = module.security_groups.vpc_link_security_group_id
 
@@ -239,4 +264,8 @@ module "api_gateway_waf" {
     Project   = var.project_name
     Component = "api-security"
   }
+
+  depends_on = [
+    aws_api_gateway_account.main
+  ]
 }

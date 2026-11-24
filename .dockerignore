@@ -1,0 +1,12 @@
+.git
+.github
+**/node_modules
+**/.idea
+**/.vscode
+**/target/*
+!services/apiservice/target/
+!services/apiservice/target/*.jar
+!services/authservice/target/
+!services/authservice/target/*.jar
+!services/authservice/target/
+!services/authservice/target/*.jar

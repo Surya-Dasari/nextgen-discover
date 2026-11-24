@@ -28,7 +28,7 @@ variable "repository_names" {
 variable "image_tag_mutability" {
   description = "Whether image tags can be overwritten"
   type        = string
-  default     = "IMMUTABLE"
+  default     = "MUTABLE"
 
   validation {
     condition     = contains(["MUTABLE", "IMMUTABLE"], var.image_tag_mutability)

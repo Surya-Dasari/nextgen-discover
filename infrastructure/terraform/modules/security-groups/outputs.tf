@@ -1,7 +1,12 @@
 
 output "alb_security_group_id" {
-  description = "Security Group ID for the Application Load Balancer"
+  description = "Security Group ID for the internal API Application Load Balancer"
   value       = aws_security_group.alb.id
+}
+
+output "frontend_alb_security_group_id" {
+  description = "Security Group ID for the public Frontend Application Load Balancer"
+  value       = aws_security_group.frontend_alb.id
 }
 
 output "eks_workers_security_group_id" {
@@ -23,3 +28,4 @@ output "vpc_link_security_group_id" {
   description = "Security Group ID for API Gateway VPC Link"
   value       = aws_security_group.vpc_link.id
 }
+

@@ -1,0 +1,41 @@
+
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaNodePool
+metadata:
+  name: combined
+  namespace: nextgen-kafka
+  labels:
+    strimzi.io/cluster: nextgen-kafka
+
+spec:
+  replicas: 3
+
+  roles:
+    - controller
+    - broker
+
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: "1"
+      memory: 2Gi
+
+  storage:
+    type: persistent-claim
+    class: gp3
+    size: 20Gi
+    deleteClaim: false
+
+  template:
+    pod:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          minDomains: 3
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              strimzi.io/pool-name: combined
+

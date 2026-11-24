@@ -12,7 +12,13 @@ management:
   endpoint:
     health:
       show-details: always
+      probes:
+        enabled: true
 
 jwt:
-  secret-base64: ${JWT_SECRET_BASE64}
+  private-key-path: ${JWT_PRIVATE_KEY_PATH:/etc/jwt/jwt-private.pem}
+  public-key-path: ${JWT_PUBLIC_KEY_PATH:/etc/jwt/jwt-public.pem}
+  issuer: ${JWT_ISSUER:nextgen-discover-auth}
+  audience: ${JWT_AUDIENCE:nextgen-discover-api}
   expiration-ms: ${JWT_EXPIRATION_MS:900000}
+  refresh-expiration-ms: ${JWT_REFRESH_EXPIRATION_MS:604800000}

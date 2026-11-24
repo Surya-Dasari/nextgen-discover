@@ -1,3 +1,4 @@
+
 output "rest_api_id" {
   description = "API Gateway REST API ID"
   value       = aws_api_gateway_rest_api.main.id
@@ -20,12 +21,12 @@ output "web_acl_arn" {
 
 output "stage_name" {
   description = "API Gateway deployment stage"
-  value       = aws_api_gateway_stage.main.stage_name
+  value       = var.enable_api_integrations ? aws_api_gateway_stage.main[0].stage_name : null
 }
 
 output "invoke_url" {
   description = "API Gateway stage invoke URL"
-  value       = aws_api_gateway_stage.main.invoke_url
+  value       = var.enable_api_integrations ? aws_api_gateway_stage.main[0].invoke_url : null
 }
 
 output "vpc_link_id" {
@@ -37,3 +38,9 @@ output "vpc_link_arn" {
   description = "API Gateway VPC Link V2 ARN"
   value       = aws_apigatewayv2_vpc_link.main.arn
 }
+
+output "jwt_authorizer_id" {
+  description = "API Gateway JWT TOKEN authorizer ID"
+  value       = aws_api_gateway_authorizer.jwt.id
+}
+

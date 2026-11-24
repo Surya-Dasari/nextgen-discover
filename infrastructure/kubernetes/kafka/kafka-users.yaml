@@ -1,0 +1,68 @@
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaUser
+metadata:
+  name: user-service-producer
+  namespace: nextgen-kafka
+  labels:
+    strimzi.io/cluster: nextgen-kafka
+spec:
+  authentication:
+    type: tls
+  authorization:
+    type: simple
+    acls:
+      - resource:
+          type: topic
+          name: user.registered
+          patternType: literal
+        operations:
+          - Write
+          - Describe
+        type: allow
+      - resource:
+          type: cluster
+        operations:
+          - IdempotentWrite
+        type: allow
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaUser
+metadata:
+  name: notification-service-consumer
+  namespace: nextgen-kafka
+  labels:
+    strimzi.io/cluster: nextgen-kafka
+spec:
+  authentication:
+    type: tls
+  authorization:
+    type: simple
+    acls:
+      - resource:
+          type: topic
+          name: user.registered
+          patternType: literal
+        operations:
+          - Read
+          - Describe
+        type: allow
+      - resource:
+          type: topic
+          name: user.registered.notification.dlt
+          patternType: literal
+        operations:
+          - Write
+          - Describe
+        type: allow
+      - resource:
+          type: group
+          name: notification-service
+          patternType: literal
+        operations:
+          - Read
+        type: allow
+      - resource:
+          type: cluster
+        operations:
+          - IdempotentWrite
+        type: allow

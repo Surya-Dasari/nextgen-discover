@@ -10,8 +10,39 @@ spring:
       ddl-auto: update
     show-sql: true
 
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+
+    properties:
+      security.protocol: SSL
+      ssl.keystore.type: PKCS12
+      ssl.keystore.location: ${KAFKA_KEYSTORE_LOCATION:/etc/kafka/user/user.p12}
+      ssl.keystore.password: ${KAFKA_KEYSTORE_PASSWORD}
+      ssl.truststore.type: PKCS12
+      ssl.truststore.location: ${KAFKA_TRUSTSTORE_LOCATION:/etc/kafka/cluster-ca/ca.p12}
+      ssl.truststore.password: ${KAFKA_TRUSTSTORE_PASSWORD}
+
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
+      properties:
+        enable.idempotence: true
+        max.in.flight.requests.per.connection: 5
+
 server:
   port: 9002
+
+app:
+  kafka:
+    topics:
+      user-registered: user.registered
+
+  outbox:
+    publisher:
+      enabled: ${OUTBOX_PUBLISHER_ENABLED:false}
+      batch-size: 100
+      poll-interval-ms: 5000
 
 management:
   endpoints:
@@ -22,4 +53,3 @@ management:
     health:
       probes:
         enabled: true
-

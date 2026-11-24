@@ -1,0 +1,80 @@
+
+replicaCount: 2
+
+image:
+  repository: 659071697866.dkr.ecr.us-east-2.amazonaws.com/nextgen-discover/frontend
+  tag: "latest"
+  pullPolicy: Always
+
+imagePullSecrets: []
+
+fullnameOverride: "frontend"
+
+serviceAccount:
+  create: true
+  name: ""
+
+service:
+  type: ClusterIP
+  port: 9080
+
+containerPort: 9080
+
+
+ingress:
+  enabled: true
+  className: alb
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80}]'
+    alb.ingress.kubernetes.io/backend-protocol: HTTP
+    alb.ingress.kubernetes.io/healthcheck-protocol: HTTP
+    alb.ingress.kubernetes.io/healthcheck-path: /health
+    alb.ingress.kubernetes.io/success-codes: "200-399"
+    
+  path: /
+  pathType: Prefix
+api:
+  baseUrl: "/api"
+  gatewayUrl: "https://tyug42sb9j.execute-api.us-east-2.amazonaws.com/dev"
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1001
+  fsGroup: 1001
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+probes:
+  liveness:
+    enabled: true
+    periodSeconds: 10
+
+  readiness:
+    enabled: true
+    periodSeconds: 5
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+

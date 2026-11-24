@@ -32,3 +32,8 @@ output "db_subnet_group_name" {
   description = "RDS subnet group name"
   value       = aws_db_subnet_group.main.name
 }
+
+output "db_resource_id" {
+  description = "Unique AWS resource ID of the RDS instance"
+  value       = aws_db_instance.main.resource_id
+}

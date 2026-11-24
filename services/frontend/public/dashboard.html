@@ -41,6 +41,63 @@
       gap: 15px;
     }
 
+    /* INSERT NOTIFICATION CSS HERE */
+    
+    .notification-wrapper {
+      position: relative;
+    }
+
+    .notification-btn {
+      background: #34294f;
+      color: white;
+      font-size: 20px;
+      position: relative;
+    }
+
+    .notification-badge {
+      position: absolute;
+      top: -6px;
+      right: -6px;
+      background: #ef4444;
+      color: white;
+      border-radius: 50%;
+      font-size: 11px;
+      padding: 3px 6px;
+    }
+
+    .notification-panel {
+      display: none;
+      position: absolute;
+      right: 0;
+      top: 45px;
+      width: 320px;
+      max-height: 400px;
+      overflow-y: auto;
+      background: #1c1730;
+      border: 1px solid #493b68;
+      border-radius: 12px;
+      padding: 15px;
+      z-index: 1000;
+    }
+
+    .notification-panel.active {
+      display: block;
+    }
+
+    .notification-item {
+      padding: 12px;
+      border-bottom: 1px solid #493b68;
+      cursor: pointer;
+    }
+
+    .notification-item.unread {
+      background: #34294f;
+    }
+
+    .notification-item small {
+      color: #c4b5fd;
+    }
+ 
     button {
       cursor: pointer;
       border: none;
@@ -324,6 +381,32 @@
         font-size: 17px !important;
       }
     }
+
+    /* 3D movie details entrance */
+    .modal.show .modal-content {
+      animation: movieModalEnter 650ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+      transform-origin: center;
+    }
+
+    @keyframes movieModalEnter {
+      0% {
+        opacity: 0;
+        transform: perspective(1200px) rotateY(70deg) scale(0.75);
+      }
+      65% {
+        opacity: 1;
+        transform: perspective(1200px) rotateY(-8deg) scale(1.03);
+      }
+      100% {
+        opacity: 1;
+        transform: perspective(1200px) rotateY(0deg) scale(1);
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .modal.show .modal-content { animation: none; }
+    }
+
   </style>
 </head>
 
@@ -334,10 +417,20 @@
 
     <div class="user-area">
       <span id="userEmail">Welcome!</span>
+      <div class="notification-wrapper">
+        <button id="notificationButton" class="notification-btn" type="button" aria-label="Notifications">
+          🔔
+          <span id="notificationBadge" class="notification-badge" hidden>0</span>
+        </button>
+        <div id="notificationPanel" class="notification-panel">
+          <strong>Notifications</strong>
+          <div id="notificationList">Loading...</div>
+        </div>
+      </div>
       <button class="logout" onclick="logout()">Logout</button>
     </div>
   </header>
-
+   
   <section class="hero">
     <h1>Discover Your Next Adventure 🌈</h1>
     <p>
@@ -407,9 +500,11 @@
     Made with imagination ❤️ | NextGen Discover
   </footer>
 
+  <script src="/config.js"></script>
   <script>
-    const API = "http://localhost:9003/catalogue/movies";
-    const AUTH_API = "http://localhost:9003/api";
+    const API = `${window.APP_CONFIG.apiBaseUrl}/movies`;
+    const AUTH_API = window.APP_CONFIG.apiBaseUrl;
+    const NOTIFICATION_API = `${AUTH_API}/notifications`;
 
     const initialToken = localStorage.getItem("accessToken");
 
@@ -541,6 +636,115 @@
 
       return response;
     }
+
+
+    // ---------- NOTIFICATIONS ----------
+
+    const notificationButton = document.getElementById("notificationButton");
+    const notificationPanel = document.getElementById("notificationPanel");
+    const notificationBadge = document.getElementById("notificationBadge");
+    const notificationList = document.getElementById("notificationList");
+
+    async function loadUnreadCount() {
+      const response = await authenticatedFetch(
+        `${NOTIFICATION_API}/unread-count`
+      );
+
+      if (!response.ok) {
+        throw new Error(`Unread count HTTP ${response.status}`);
+      }
+
+      const data = await response.json();
+      const count = Number(data.unreadCount || 0);
+
+      notificationBadge.textContent = count > 99 ? "99+" : String(count);
+      notificationBadge.hidden = count <= 0;
+    }
+
+    async function loadNotifications() {
+      notificationList.textContent = "Loading...";
+
+      try {
+        const response = await authenticatedFetch(
+          `${NOTIFICATION_API}?page=0&size=20`
+        );
+
+        if (!response.ok) {
+          throw new Error(`Notifications HTTP ${response.status}`);
+        }
+
+        const pageData = await response.json();
+        const notifications = pageData.content || [];
+
+        notificationList.replaceChildren();
+
+        if (notifications.length === 0) {
+          notificationList.textContent = "No notifications yet.";
+          return;
+        }
+
+        notifications.forEach(notification => {
+          const item = document.createElement("div");
+          const isRead =
+            notification.read === true || notification.isRead === true;
+
+          item.className = `notification-item${isRead ? "" : " unread"}`;
+
+          const message = document.createElement("p");
+          message.textContent =
+            notification.eventType === "USER_REGISTERED"
+              ? `Welcome! ${notification.name || "A new user"} registered successfully.`
+              : `Notification: ${notification.eventType || "Update"}`;
+
+          const date = document.createElement("small");
+          date.textContent = notification.occurredAt
+            ? new Date(notification.occurredAt).toLocaleString()
+            : "";
+
+          item.append(message, date);
+
+          if (!isRead) {
+            item.addEventListener("click", async () => {
+              try {
+                const result = await authenticatedFetch(
+                  `${NOTIFICATION_API}/${encodeURIComponent(notification.eventId)}/read`,
+                  { method: "PATCH" }
+                );
+
+                if (!result.ok && result.status !== 404) {
+                  throw new Error(`Mark-read HTTP ${result.status}`);
+                }
+
+                await Promise.all([
+                  loadNotifications(),
+                  loadUnreadCount()
+                ]);
+              } catch (error) {
+                console.error("Mark-read error:", error);
+              }
+            });
+          }
+
+          notificationList.appendChild(item);
+        });
+
+      } catch (error) {
+        console.error("Notification error:", error);
+        notificationList.textContent = "Unable to load notifications.";
+      }
+    }
+
+    notificationButton.addEventListener("click", async () => {
+      const opening = !notificationPanel.classList.contains("active");
+      notificationPanel.classList.toggle("active");
+
+      if (opening) {
+        await Promise.all([
+          loadNotifications(),
+          loadUnreadCount().catch(console.error)
+        ]);
+      }
+    });
 
     // ---------- LOAD MOVIES ----------
 
@@ -765,6 +969,7 @@
 
     if (initialToken) {
       loadMovies();
+      loadUnreadCount().catch(console.error);
     }
 
   </script>

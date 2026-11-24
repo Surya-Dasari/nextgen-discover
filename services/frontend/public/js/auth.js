@@ -1,5 +1,4 @@
-
-const API = "http://localhost:9003/api";
+const API = window.APP_CONFIG.apiBaseUrl;
 
 async function login() {
   const email = document.getElementById("email").value.trim();
@@ -29,8 +28,6 @@ async function login() {
 
     localStorage.setItem("accessToken", tokens.accessToken);
     localStorage.setItem("refreshToken", tokens.refreshToken);
-
-    // Temporary compatibility for pages still using the old key.
     localStorage.setItem("token", tokens.accessToken);
 
     window.location.href = "welcome.html";
@@ -60,7 +57,6 @@ async function signup() {
     });
 
     const message = await response.text();
-
     msg.innerText = message;
 
   } catch (error) {
@@ -68,4 +64,3 @@ async function signup() {
     msg.innerText = "Unable to connect to the server";
   }
 }
-

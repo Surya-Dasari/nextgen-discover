@@ -1,0 +1,90 @@
+
+replicaCount: 2
+
+image:
+  repository: 659071697866.dkr.ecr.us-east-2.amazonaws.com/nextgen-discover/api
+  tag: "latest"
+  pullPolicy: Always
+
+imagePullSecrets: []
+
+nameOverride: ""
+fullnameOverride: "apiservice"
+
+serviceAccount:
+  create: true
+  name: ""
+
+service:
+  type: ClusterIP
+  port: 9000
+
+containerPort: 9000
+
+downstream:
+  authServiceUrl: http://authservice:9001
+  userServiceUrl: http://userservice-userservice.nextgen-discover.svc.cluster.local:9002
+  catalogueServiceUrl: http://catalogueservice:9004
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1001
+  fsGroup: 1001
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    cpu: "1"
+    memory: 1Gi
+
+probes:
+  startup:
+    enabled: true
+    periodSeconds: 10
+    failureThreshold: 30
+  liveness:
+    enabled: true
+    periodSeconds: 10
+  readiness:
+    enabled: true
+    periodSeconds: 5
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# --------------------------------------------------
+# AWS Application Load Balancer Ingress
+# --------------------------------------------------
+
+ingress:
+  enabled: true
+
+  className: alb
+
+  
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internal
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80}]'
+    alb.ingress.kubernetes.io/backend-protocol: HTTP
+    alb.ingress.kubernetes.io/healthcheck-protocol: HTTP
+    alb.ingress.kubernetes.io/healthcheck-path: /actuator/health/readiness
+    alb.ingress.kubernetes.io/success-codes: "200-399"
+    
+
+  path: /
+  pathType: Prefix
+

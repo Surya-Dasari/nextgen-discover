@@ -1,0 +1,19 @@
+
+services:
+  nexus:
+    image: sonatype/nexus3@sha256:91a9af44af777c353db11a5ee73850c7eb24b03c997ff4cc62a3500ad38a1332
+    container_name: nexus
+    restart: unless-stopped
+
+    ports:
+      - "127.0.0.1:8081:8081"
+
+    volumes:
+      - nexus-data:/nexus-data
+
+    environment:
+      INSTALL4J_ADD_VM_PARAMS: "-Xms1200m -Xmx1200m -XX:MaxDirectMemorySize=1200m"
+
+volumes:
+  nexus-data:
+    external: true

@@ -5,6 +5,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.HttpServerErrorException;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
 @RestController
@@ -26,23 +29,71 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody User user) {
 
-        Boolean valid = rest.postForObject(
-                userServiceUrl + "/users/validate",
-                user,
-                Boolean.class
-        );
+        if (user == null
+                || user.getEmail() == null
+                || user.getEmail().isBlank()
+                || user.getPassword() == null
+                || user.getPassword().isBlank()) {
 
-        if (!Boolean.TRUE.equals(valid)) {
+            return ResponseEntity
+                    .badRequest()
+                    .body("Email and password are required");
+        }
+
+        UserIdentity identity;
+
+        try {
+            identity = rest.postForObject(
+                    userServiceUrl + "/users/authenticate",
+                    user,
+                    UserIdentity.class
+            );
+
+        } catch (HttpClientErrorException.Unauthorized ex) {
+
             return ResponseEntity
                     .status(HttpStatus.UNAUTHORIZED)
                     .body("Invalid credentials");
+
+        } catch (HttpClientErrorException ex) {
+
+            return ResponseEntity
+                    .status(ex.getStatusCode())
+                    .body("User authentication request was rejected");
+
+        } catch (HttpServerErrorException ex) {
+
+            return ResponseEntity
+                    .status(HttpStatus.BAD_GATEWAY)
+                    .body("User Service encountered an error");
+
+        } catch (RestClientException ex) {
+
+            return ResponseEntity
+                    .status(HttpStatus.SERVICE_UNAVAILABLE)
+                    .body("User Service is unavailable");
         }
 
-        String accessToken =
-                jwtUtil.generateAccessToken(user.getEmail());
+        if (identity == null
+                || identity.userId() == null
+                || identity.userId() <= 0
+                || identity.email() == null
+                || identity.email().isBlank()) {
 
-        String refreshToken =
-                jwtUtil.generateRefreshToken(user.getEmail());
+            return ResponseEntity
+                    .status(HttpStatus.BAD_GATEWAY)
+                    .body("User Service returned an invalid identity");
+        }
+
+        String accessToken = jwtUtil.generateAccessToken(
+                identity.email(),
+                identity.userId()
+        );
+
+        String refreshToken = jwtUtil.generateRefreshToken(
+                identity.email(),
+                identity.userId()
+        );
 
         return ResponseEntity.ok(
                 new TokenResponse(accessToken, refreshToken)
@@ -64,21 +115,35 @@ public class AuthController {
                     .body("Refresh token is required");
         }
 
-        if (!jwtUtil.isRefreshTokenValid(request.refreshToken())) {
+        String refreshToken = request.refreshToken();
+
+        if (!jwtUtil.isRefreshTokenValid(refreshToken)) {
+
             return ResponseEntity
                     .status(HttpStatus.UNAUTHORIZED)
                     .body("Invalid or expired refresh token");
         }
 
-        String email =
-                jwtUtil.getEmailFromRefreshToken(request.refreshToken());
+        try {
+            String email =
+                    jwtUtil.getEmailFromRefreshToken(refreshToken);
 
-        String newAccessToken =
-                jwtUtil.generateAccessToken(email);
+            Long userId =
+                    jwtUtil.getUserIdFromRefreshToken(refreshToken);
 
-        return ResponseEntity.ok(
-                new AccessTokenResponse(newAccessToken)
-        );
+            String newAccessToken =
+                    jwtUtil.generateAccessToken(email, userId);
+
+            return ResponseEntity.ok(
+                    new AccessTokenResponse(newAccessToken)
+            );
+
+        } catch (IllegalArgumentException ex) {
+
+            return ResponseEntity
+                    .status(HttpStatus.UNAUTHORIZED)
+                    .body("Refresh token has an invalid identity");
+        }
     }
 
     // ---------- RESPONSE DTOs ----------

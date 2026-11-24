@@ -8,6 +8,11 @@ terraform {
       version = "~> 6.0"
     }
 
+    archive = {
+      source  = "hashicorp/archive"
+      version = "~> 2.8"
+    }
+
     helm = {
       source  = "hashicorp/helm"
       version = "3.3.0"

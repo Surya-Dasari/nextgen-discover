@@ -1,0 +1,16 @@
+replicas: 1
+
+watchAnyNamespace: false
+
+createGlobalResources: true
+
+leaderElection:
+  enable: true
+
+resources:
+  requests:
+    memory: 384Mi
+    cpu: 200m
+  limits:
+    memory: 384Mi
+    cpu: 1000m

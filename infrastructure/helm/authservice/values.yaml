@@ -1,0 +1,74 @@
+
+replicaCount: 2
+
+image:
+  repository: 659071697866.dkr.ecr.us-east-2.amazonaws.com/nextgen-discover/auth
+  tag: "latest"
+  pullPolicy: Always
+
+imagePullSecrets: []
+
+nameOverride: ""
+fullnameOverride: "authservice"
+
+serviceAccount:
+  create: true
+  name: ""
+
+service:
+  type: ClusterIP
+  port: 9001
+
+containerPort: 9001
+
+downstream:
+  userServiceUrl: http://userservice-userservice.nextgen-discover.svc.cluster.local:9002
+
+jwt:
+  secretName: authservice-jwt
+  privateKeyPath: /etc/jwt/jwt-private.pem
+  publicKeyPath: /etc/jwt/jwt-public.pem
+  issuer: nextgen-discover-auth
+  audience: nextgen-discover-api
+  expirationMs: "900000"
+  refreshExpirationMs: "604800000"
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1001
+  fsGroup: 1001
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    cpu: "1"
+    memory: 1Gi
+
+probes:
+  startup:
+    enabled: true
+    periodSeconds: 10
+    failureThreshold: 30
+  liveness:
+    enabled: true
+    periodSeconds: 10
+  readiness:
+    enabled: true
+    periodSeconds: 5
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+

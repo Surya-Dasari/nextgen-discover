@@ -1,7 +1,6 @@
 FROM registry.access.redhat.com/ubi9/openjdk-17-runtime:latest
 
 USER root
-
 WORKDIR /deployments
 
 COPY target/*.jar app.jar
@@ -11,8 +10,8 @@ RUN chgrp -R 0 /deployments && \
 
 USER 1001
 
-EXPOSE 9001
+EXPOSE 9000
 
 ENV _JAVA_OPTIONS="--add-opens=java.base/java.io=ALL-UNNAMED"
-CMD ["java","-jar","app.jar"]
 
+CMD ["java", "-jar", "app.jar"]
