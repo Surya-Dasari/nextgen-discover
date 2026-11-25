@@ -1,0 +1,30 @@
+[
+  {
+    "name": "auth",
+    "context": "services/authservice"
+  },
+  {
+    "name": "user",
+    "context": "services/userservice"
+  },
+  {
+    "name": "api",
+    "context": "services/apiservice"
+  },
+  {
+    "name": "catalogue",
+    "context": "services/catalogueservice"
+  },
+  {
+    "name": "notification",
+    "context": "services/notificationservice"
+  },
+  {
+    "name": "frontend",
+    "context": "services/frontend"
+  },
+  {
+    "name": "database-bootstrap",
+    "context": "infrastructure/docker/database-bootstrap"
+  }
+]

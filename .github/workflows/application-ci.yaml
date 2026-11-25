@@ -1,4 +1,3 @@
-
 name: NextGen Discover - Application CI
 
 on:
@@ -12,6 +11,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 concurrency:
   group: application-ci-${{ github.ref }}
@@ -19,11 +19,13 @@ concurrency:
 
 jobs:
   build-and-test:
-    name: Build, Test and Security Scan
+    name: Build, Test, Scan and Publish
     runs-on: ubuntu-latest
+    timeout-minutes: 60
 
     env:
       NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
     steps:
       - name: Checkout source code
@@ -37,11 +39,29 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITLEAKS_ENABLE_COMMENTS: "false"
 
-      - name: Set up Java 17
+      - name: Read Java version from Maven configuration
+        id: java-version
+        run: |
+          set -euo pipefail
+
+          JAVA_VERSION="$(python3 -c '
+          import xml.etree.ElementTree as ET
+          root = ET.parse("pom.xml").getroot()
+          namespace = {"m": "http://maven.apache.org/POM/4.0.0"}
+          version = root.findtext("m:properties/m:java.version", namespaces=namespace)
+          if not version:
+              raise SystemExit("java.version is missing from pom.xml")
+          print(version.strip())
+          ')"
+
+          echo "java_version=${JAVA_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Configured Java version: ${JAVA_VERSION}"
+
+      - name: Set up Java
         uses: actions/setup-java@v6
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: ${{ steps.java-version.outputs.java_version }}
           cache: maven
 
       - name: Display Java and Maven versions
@@ -49,18 +69,31 @@ jobs:
           java -version
           mvn -version
 
-      - name: Build, test, OWASP scan and generate SBOM
-        run: mvn -B -ntp clean verify
+      - name: Build, test, optional OWASP scan and generate SBOM
+        run: |
+          set -euo pipefail
+
+          if [[ -n "${NVD_API_KEY:-}" ]]; then
+            echo "NVD_API_KEY is configured. Enabling OWASP Dependency-Check."
+            mvn -B -ntp clean verify -Pdependency-check
+          else
+            echo "NVD_API_KEY is not configured. Skipping OWASP Dependency-Check."
+            mvn -B -ntp clean verify
+          fi
 
       - name: SonarQube Analysis and Quality Gate
-        run: >
-          mvn -B -ntp
-          org.sonarsource.scanner.maven:sonar-maven-plugin:5.8.0.7211:sonar
-          -Dsonar.organization=salaar
-          -Dsonar.projectKey=Surya-Dasari_nextgen-discover
-          -Dsonar.qualitygate.wait=true
+        if: ${{ env.SONAR_TOKEN != '' && vars.SONAR_ORGANIZATION != '' && vars.SONAR_PROJECT_KEY != '' }}
+        run: |
+          set -euo pipefail
+
+          mvn -B -ntp \
+            org.sonarsource.scanner.maven:sonar-maven-plugin:5.8.0.7211:sonar \
+            -Dsonar.organization="${SONAR_ORGANIZATION}" \
+            -Dsonar.projectKey="${SONAR_PROJECT_KEY}" \
+            -Dsonar.qualitygate.wait=true
         env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_ORGANIZATION: ${{ vars.SONAR_ORGANIZATION }}
+          SONAR_PROJECT_KEY: ${{ vars.SONAR_PROJECT_KEY }}
 
       - name: Upload CycloneDX SBOM
         uses: actions/upload-artifact@v6
@@ -69,4 +102,222 @@ jobs:
           path: target/bom.json
           if-no-files-found: error
           retention-days: 30
+
+      # --------------------------------------------------
+      # Build all seven application images
+      # --------------------------------------------------
+
+      - name: Build Docker images
+        run: |
+          set -euo pipefail
+
+          python3 - <<'PYTHON'
+          import json
+          import os
+          import subprocess
+          from pathlib import Path
+
+          manifest_path = Path("ci/images.json")
+          images = json.loads(manifest_path.read_text())
+          commit_sha = os.environ["GITHUB_SHA"]
+
+          for image in images:
+              image_name = image["name"]
+              build_context = Path(image["context"])
+
+              if not (build_context / "Dockerfile").is_file():
+                  raise SystemExit(f"Missing Dockerfile: {build_context / 'Dockerfile'}")
+
+              image_tag = f"nextgen-{image_name}:{commit_sha}"
+              print(f"Building {image_tag}...", flush=True)
+
+              subprocess.run(
+                  ["docker", "build", "--pull", "--tag", image_tag, str(build_context)],
+                  check=True,
+              )
+
+          print(f"Successfully built {len(images)} Docker images.")
+          PYTHON
+
+      # --------------------------------------------------
+      # Trivy image vulnerability scanning
+      # --------------------------------------------------
+
+      - name: Trivy scan - Auth Service
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: image
+          image-ref: nextgen-auth:${{ github.sha }}
+          format: table
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: CRITICAL,HIGH
+
+      - name: Trivy scan - User Service
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: image
+          image-ref: nextgen-user:${{ github.sha }}
+          format: table
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: CRITICAL,HIGH
+          skip-setup-trivy: true
+
+      - name: Trivy scan - API Service
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: image
+          image-ref: nextgen-api:${{ github.sha }}
+          format: table
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: CRITICAL,HIGH
+          skip-setup-trivy: true
+
+      - name: Trivy scan - Catalogue Service
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: image
+          image-ref: nextgen-catalogue:${{ github.sha }}
+          format: table
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: CRITICAL,HIGH
+          skip-setup-trivy: true
+
+      - name: Trivy scan - Notification Service
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: image
+          image-ref: nextgen-notification:${{ github.sha }}
+          format: table
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: CRITICAL,HIGH
+          skip-setup-trivy: true
+
+      - name: Trivy scan - Frontend
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: image
+          image-ref: nextgen-frontend:${{ github.sha }}
+          format: table
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: CRITICAL,HIGH
+          skip-setup-trivy: true
+
+      - name: Trivy scan - Database Bootstrap
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: image
+          image-ref: nextgen-database-bootstrap:${{ github.sha }}
+          format: table
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: CRITICAL,HIGH
+          skip-setup-trivy: true
+
+      # --------------------------------------------------
+      # AWS authentication and ECR publishing
+      # Push events on dev only; pull requests never receive AWS access
+      # AWS account and ECR registry are discovered at runtime
+      # --------------------------------------------------
+
+      - name: Configure AWS credentials using GitHub OIDC
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/dev' && vars.AWS_ROLE_ARN != '' && vars.AWS_REGION != '' }}
+        uses: aws-actions/configure-aws-credentials@v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          role-session-name: NextGenDiscover-GitHubActions-${{ github.run_id }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Discover AWS account and ECR registry
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/dev' && vars.AWS_ROLE_ARN != '' && vars.AWS_REGION != '' }}
+        run: |
+          set -euo pipefail
+
+          AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
+          ECR_REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+          ECR_REPOSITORY="${GITHUB_REPOSITORY##*/}"
+
+          {
+            echo "AWS_ACCOUNT_ID=${AWS_ACCOUNT_ID}"
+            echo "ECR_REGISTRY=${ECR_REGISTRY}"
+            echo "ECR_REPOSITORY=${ECR_REPOSITORY}"
+          } >> "$GITHUB_ENV"
+
+          echo "AWS account discovered successfully."
+          echo "ECR registry: ${ECR_REGISTRY}"
+          echo "ECR repository namespace: ${ECR_REPOSITORY}"
+
+      - name: Verify AWS identity
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/dev' && vars.AWS_ROLE_ARN != '' && vars.AWS_REGION != '' }}
+        run: aws sts get-caller-identity
+
+      - name: Login to Amazon ECR
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/dev' && vars.AWS_ROLE_ARN != '' && vars.AWS_REGION != '' }}
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Push seven images to ECR
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/dev' && vars.AWS_ROLE_ARN != '' && vars.AWS_REGION != '' }}
+        run: |
+          set -euo pipefail
+
+          python3 - <<'PYTHON'
+          import json
+          import os
+          import subprocess
+          from pathlib import Path
+
+          images = json.loads(Path("ci/images.json").read_text())
+          commit_sha = os.environ["GITHUB_SHA"]
+          registry = os.environ["ECR_REGISTRY"]
+          repository = os.environ["ECR_REPOSITORY"]
+
+          for image in images:
+              image_name = image["name"]
+              local_image = f"nextgen-{image_name}:{commit_sha}"
+              ecr_image = f"{registry}/{repository}/{image_name}:{commit_sha}"
+
+              print(f"Publishing {image_name} to ECR...", flush=True)
+
+              subprocess.run(
+                  ["docker", "tag", local_image, ecr_image],
+                  check=True,
+              )
+              subprocess.run(
+                  ["docker", "push", ecr_image],
+                  check=True,
+              )
+
+          print(f"Successfully published {len(images)} images.")
+          PYTHON
+
+      - name: Display published image references
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/dev' && vars.AWS_ROLE_ARN != '' && vars.AWS_REGION != '' }}
+        run: |
+          python3 - <<'PYTHON'
+          import json
+          import os
+          from pathlib import Path
+
+          images = json.loads(Path("ci/images.json").read_text())
+          registry = os.environ["ECR_REGISTRY"]
+          repository = os.environ["ECR_REPOSITORY"]
+          commit_sha = os.environ["GITHUB_SHA"]
+
+          for image in images:
+              print(
+                  f"{registry}/{repository}/{image['name']}:{commit_sha}"
+              )
+          PYTHON
 
