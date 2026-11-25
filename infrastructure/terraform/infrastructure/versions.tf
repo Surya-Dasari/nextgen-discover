@@ -8,6 +8,11 @@ terraform {
       version = "~> 6.0"
     }
 
+    time = {
+      source  = "hashicorp/time"
+      version = "~> 0.14"
+    }
+
     archive = {
       source  = "hashicorp/archive"
       version = "~> 2.8"

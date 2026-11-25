@@ -87,6 +87,20 @@ resource "aws_iam_role_policy" "vpc_flow_logs" {
   })
 }
 
+# ==================================================
+# VPC FLOW LOGS SHUTDOWN WAIT
+# ==================================================
+
+resource "time_sleep" "vpc_flow_logs_shutdown" {
+  destroy_duration = "10m"
+
+  # Keep the destination and delivery permissions available
+  # until the shutdown wait has completed.
+  depends_on = [
+    aws_cloudwatch_log_group.vpc_flow_logs,
+    aws_iam_role_policy.vpc_flow_logs
+  ]
+}
 
 # ==================================================
 # VPC FLOW LOGS
@@ -100,7 +114,8 @@ resource "aws_flow_log" "vpc" {
   iam_role_arn         = aws_iam_role.vpc_flow_logs.arn
 
   depends_on = [
-    aws_iam_role_policy.vpc_flow_logs
+    aws_iam_role_policy.vpc_flow_logs,
+    time_sleep.vpc_flow_logs_shutdown
   ]
 
   tags = merge(var.tags, {
