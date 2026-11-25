@@ -8,12 +8,31 @@ pipeline {
         skipDefaultCheckout(true)
     }
 
+    parameters {
+        string(name: 'GITHUB_OWNER', defaultValue: 'Surya-Dasari',
+               description: 'GitHub account or organization name')
+        string(name: 'GITHUB_OWNER_ID', defaultValue: '173264214',
+               description: 'Immutable numeric GitHub owner ID')
+        string(name: 'GITHUB_REPOSITORY', defaultValue: 'nextgen-discover',
+               description: 'GitHub repository name without owner')
+        string(name: 'GITHUB_REPOSITORY_ID', defaultValue: '1460145920',
+               description: 'Immutable numeric GitHub repository ID')
+        string(name: 'GITHUB_BRANCH', defaultValue: 'dev',
+               description: 'Git branch authorized for AWS OIDC')
+    }
+
     environment {
         AWS_PROFILE = 'nextgen-jenkins'
         AWS_DEFAULT_REGION = 'us-east-2'
         AWS_REGION = 'us-east-2'
         TF_IN_AUTOMATION = 'true'
         TF_INPUT = '0'
+
+        TF_VAR_github_owner          = "${params.GITHUB_OWNER}"
+        TF_VAR_github_owner_id       = "${params.GITHUB_OWNER_ID}"
+        TF_VAR_github_repository     = "${params.GITHUB_REPOSITORY}"
+        TF_VAR_github_repository_id  = "${params.GITHUB_REPOSITORY_ID}"
+        TF_VAR_github_branch         = "${params.GITHUB_BRANCH}"
     }
 
     stages {
