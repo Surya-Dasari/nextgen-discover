@@ -98,7 +98,8 @@ module "vpc_flow_logs" {
 module "iam" {
   source = "../modules/iam"
 
-  project_name = var.project_name
+  project_name        = var.project_name
+  ecr_repository_arns = module.ecr.repository_arns
 
   tags = {
     Project = var.project_name

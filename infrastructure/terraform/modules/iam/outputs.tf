@@ -23,3 +23,12 @@ output "api_gateway_cloudwatch_role_arn" {
   description = "ARN of the API Gateway CloudWatch logging role"
   value       = aws_iam_role.api_gateway_cloudwatch.arn
 }
+
+# --------------------------------------------------
+# GitHub Actions IAM Role
+# --------------------------------------------------
+
+output "github_actions_role_arn" {
+  description = "IAM role ARN assumed by GitHub Actions through OIDC"
+  value       = aws_iam_role.github_actions.arn
+}

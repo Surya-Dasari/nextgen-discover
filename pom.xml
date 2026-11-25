@@ -58,18 +58,7 @@
         </dependencies>
     </dependencyManagement>
 
-    <!-- Nexus Publishing Configuration -->
-    <distributionManagement>
-        <repository>
-            <id>nextgen-maven-releases</id>
-            <url>http://localhost:8081/repository/maven-releases/</url>
-        </repository>
 
-        <snapshotRepository>
-            <id>nextgen-maven-snapshots</id>
-            <url>http://localhost:8081/repository/maven-snapshots/</url>
-        </snapshotRepository>
-    </distributionManagement>
 
     <build>
         <plugins>
