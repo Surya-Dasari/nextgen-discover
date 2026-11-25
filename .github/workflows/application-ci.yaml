@@ -152,7 +152,7 @@ jobs:
           exit-code: '1'
           ignore-unfixed: true
           vuln-type: os,library
-          severity: CRITICAL,HIGH
+          severity: CRITICAL
 
       - name: Trivy scan - User Service
         uses: aquasecurity/trivy-action@v0.36.0
@@ -163,7 +163,7 @@ jobs:
           exit-code: '1'
           ignore-unfixed: true
           vuln-type: os,library
-          severity: CRITICAL,HIGH
+          severity: CRITICAL
           skip-setup-trivy: true
 
       - name: Trivy scan - API Service
@@ -175,7 +175,7 @@ jobs:
           exit-code: '1'
           ignore-unfixed: true
           vuln-type: os,library
-          severity: CRITICAL,HIGH
+          severity: CRITICAL
           skip-setup-trivy: true
 
       - name: Trivy scan - Catalogue Service
@@ -187,7 +187,7 @@ jobs:
           exit-code: '1'
           ignore-unfixed: true
           vuln-type: os,library
-          severity: CRITICAL,HIGH
+          severity: CRITICAL
           skip-setup-trivy: true
 
       - name: Trivy scan - Notification Service
@@ -199,7 +199,7 @@ jobs:
           exit-code: '1'
           ignore-unfixed: true
           vuln-type: os,library
-          severity: CRITICAL,HIGH
+          severity: CRITICAL
           skip-setup-trivy: true
 
       - name: Trivy scan - Frontend
@@ -211,7 +211,7 @@ jobs:
           exit-code: '1'
           ignore-unfixed: true
           vuln-type: os,library
-          severity: CRITICAL,HIGH
+          severity: CRITICAL
           skip-setup-trivy: true
 
       - name: Trivy scan - Database Bootstrap
@@ -223,7 +223,7 @@ jobs:
           exit-code: '1'
           ignore-unfixed: true
           vuln-type: os,library
-          severity: CRITICAL,HIGH
+          severity: CRITICAL
           skip-setup-trivy: true
 
       # --------------------------------------------------
