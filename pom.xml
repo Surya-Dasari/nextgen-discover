@@ -128,6 +128,8 @@
                 <version>13.0.0</version>
 
                 <configuration>
+                    <dataDirectory>${user.home}/.cache/dependency-check</dataDirectory>
+
                     <nvdApiKeyEnvironmentVariable>
                         NVD_API_KEY
                     </nvdApiKeyEnvironmentVariable>
