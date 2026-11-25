@@ -101,6 +101,12 @@ module "iam" {
   project_name        = var.project_name
   ecr_repository_arns = module.ecr.repository_arns
 
+  github_owner         = var.github_owner
+  github_owner_id      = var.github_owner_id
+  github_repository    = var.github_repository
+  github_repository_id = var.github_repository_id
+  github_branch        = var.github_branch
+
   tags = {
     Project = var.project_name
   }

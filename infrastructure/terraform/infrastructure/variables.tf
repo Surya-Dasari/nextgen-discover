@@ -58,3 +58,33 @@ variable "api_alb_dns_name" {
   default     = null
   nullable    = true
 }
+
+
+# --------------------------------------------------
+# GitHub Actions OIDC Identity
+# --------------------------------------------------
+
+variable "github_owner" {
+  description = "GitHub account or organization name"
+  type        = string
+}
+
+variable "github_owner_id" {
+  description = "Immutable numeric GitHub owner ID"
+  type        = string
+}
+
+variable "github_repository" {
+  description = "GitHub repository name without the owner"
+  type        = string
+}
+
+variable "github_repository_id" {
+  description = "Immutable numeric GitHub repository ID"
+  type        = string
+}
+
+variable "github_branch" {
+  description = "Git branch allowed to assume the GitHub Actions IAM role"
+  type        = string
+}

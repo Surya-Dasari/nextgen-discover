@@ -1,0 +1,16 @@
+# Copy this file to terraform.tfvars and configure your own values.
+
+aws_region  = "us-east-2"
+project_name = "nextgen-discover"
+
+jwt_issuer   = "nextgen-discover-auth"
+jwt_audience = "nextgen-discover-api"
+
+enable_api_integrations = false
+
+# Replace these placeholders with your own GitHub repository identity.
+github_owner         = "YOUR_GITHUB_OWNER"
+github_owner_id      = "YOUR_GITHUB_OWNER_ID"
+github_repository    = "YOUR_REPOSITORY"
+github_repository_id = "YOUR_REPOSITORY_ID"
+github_branch        = "dev"
