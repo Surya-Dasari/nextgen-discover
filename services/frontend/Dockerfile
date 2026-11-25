@@ -1,6 +1,11 @@
+
 FROM registry.access.redhat.com/ubi9/nodejs-18:latest
 
 USER root
+
+# Update vulnerable operating system packages
+RUN dnf -y upgrade ca-certificates && \
+    dnf clean all
 
 WORKDIR /opt/app-root/src
 
