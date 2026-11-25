@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: nextgen-discover-root
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/Surya-Dasari/nextgen-discover.git
+    targetRevision: dev
+    path: gitops/applications
+    directory:
+      recurse: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

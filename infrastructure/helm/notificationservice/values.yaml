@@ -1,11 +1,14 @@
 replicaCount: 1
 
 image:
-  repository: 659071697866.dkr.ecr.us-east-2.amazonaws.com/nextgen-discover/notification
+  repository: ""
   tag: "latest"
   pullPolicy: Always
 
 imagePullSecrets: []
+
+rollout:
+  revision: ""
 
 nameOverride: ""
 fullnameOverride: ""
@@ -21,13 +24,13 @@ service:
 containerPort: 9005
 
 database:
-  host: nextgen-discover-postgres.cn0w84e2itpi.us-east-2.rds.amazonaws.com
+  host: ""
   port: 5432
   name: nextgendiscover
   secretName: notificationservice-db
 
 kafka:
-  bootstrapServers: nextgen-kafka-kafka-bootstrap.nextgen-kafka.svc:9093
+  bootstrapServers: ""
   topic: user.registered
   consumerGroup: notification-service
   consumerSecretName: notification-service-consumer

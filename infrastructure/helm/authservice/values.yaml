@@ -2,11 +2,14 @@
 replicaCount: 2
 
 image:
-  repository: 659071697866.dkr.ecr.us-east-2.amazonaws.com/nextgen-discover/auth
+  repository: ""
   tag: "latest"
   pullPolicy: Always
 
 imagePullSecrets: []
+
+rollout:
+  revision: ""
 
 nameOverride: ""
 fullnameOverride: "authservice"
@@ -32,6 +35,9 @@ jwt:
   audience: nextgen-discover-api
   expirationMs: "900000"
   refreshExpirationMs: "604800000"
+
+istio:
+  enabled: false
 
 podAnnotations: {}
 podLabels: {}

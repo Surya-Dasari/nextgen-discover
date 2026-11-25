@@ -4,10 +4,14 @@ on:
   push:
     branches:
       - dev
+    paths-ignore:
+      - gitops/environments/aws-eks/values/rollout.yaml
 
   pull_request:
     branches:
       - dev
+    paths-ignore:
+      - gitops/environments/aws-eks/values/rollout.yaml
 
 permissions:
   contents: read
@@ -286,8 +290,111 @@ jobs:
           set -euo pipefail
 
           ECR_IMAGE="${ECR_REGISTRY}/${ECR_REPOSITORY}/${IMAGE_NAME}:${GITHUB_SHA}"
+          ECR_LATEST_IMAGE="${ECR_REGISTRY}/${ECR_REPOSITORY}/${IMAGE_NAME}:latest"
 
+          # Publish the immutable commit-specific image tag.
           docker tag "nextgen-${IMAGE_NAME}:${GITHUB_SHA}" "${ECR_IMAGE}"
           docker push "${ECR_IMAGE}"
 
-          echo "Successfully published ${ECR_IMAGE}"
+          # Publish the mutable latest tag for Kubernetes deployments.
+          docker tag "nextgen-${IMAGE_NAME}:${GITHUB_SHA}" "${ECR_LATEST_IMAGE}"
+          docker push "${ECR_LATEST_IMAGE}"
+
+          echo "Successfully published:"
+          echo "  ${ECR_IMAGE}"
+          echo "  ${ECR_LATEST_IMAGE}"
+
+  gitops-update:
+    name: Update GitOps rollout revision
+    needs:
+      - build-and-test
+      - build-scan-publish
+    if: ${{ success() && github.event_name == 'push' && github.ref == 'refs/heads/dev' && vars.AWS_ROLE_ARN != '' && vars.AWS_REGION != '' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout latest dev branch
+        uses: actions/checkout@v7
+        with:
+          ref: dev
+          fetch-depth: 0
+
+      - name: Check whether this workflow is for the latest commit
+        id: freshness
+        run: |
+          set -euo pipefail
+
+          git fetch origin dev
+          LATEST_DEV_SHA="$(git rev-parse refs/remotes/origin/dev)"
+
+          if [[ "$LATEST_DEV_SHA" == "$GITHUB_SHA" ]]; then
+            echo "is_latest=true" >> "$GITHUB_OUTPUT"
+            echo "This workflow is for the latest dev commit."
+          else
+            echo "is_latest=false" >> "$GITHUB_OUTPUT"
+            echo "Skipping stale workflow. Latest dev: ${LATEST_DEV_SHA}"
+          fi
+
+      - name: Update shared rollout revision
+        if: steps.freshness.outputs.is_latest == 'true'
+        env:
+          ROLLOUT_REVISION: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          python3 - <<'PYTHON'
+          import os
+          from pathlib import Path
+
+          rollout_file = Path("gitops/environments/aws-eks/values/rollout.yaml")
+          content = rollout_file.read_text()
+
+          import re
+
+          revision = os.environ["ROLLOUT_REVISION"]
+          if not re.fullmatch(r"[0-9a-f]{40}", revision):
+              raise SystemExit("Invalid Git commit SHA.")
+
+          pattern = r'(?m)^  revision: "(?:[0-9a-f]{40})?"$'
+          updated, count = re.subn(
+              pattern,
+              f'  revision: "{revision}"',
+              content,
+          )
+
+          if count != 1:
+              raise SystemExit("Expected exactly one valid rollout revision field.")
+
+          rollout_file.write_text(updated)
+          print(f"Updated rollout revision to {os.environ['ROLLOUT_REVISION']}")
+          PYTHON
+
+      - name: Commit and push GitOps revision
+        if: steps.freshness.outputs.is_latest == 'true'
+        run: |
+          set -euo pipefail
+
+          # Recheck immediately before committing to avoid stale updates.
+          git fetch origin dev
+          LATEST_DEV_SHA="$(git rev-parse refs/remotes/origin/dev)"
+
+          if [[ "$LATEST_DEV_SHA" != "$GITHUB_SHA" ]]; then
+            echo "Skipping stale GitOps update."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add gitops/environments/aws-eks/values/rollout.yaml
+
+          if git diff --cached --quiet; then
+            echo "No GitOps revision change detected."
+            exit 0
+          fi
+
+          git commit -m "chore(gitops): update rollout revision [skip ci]"
+          git push origin HEAD:dev

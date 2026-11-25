@@ -2,11 +2,14 @@
 replicaCount: 1
 
 image:
-  repository: 659071697866.dkr.ecr.us-east-2.amazonaws.com/nextgen-discover/catalogue
+  repository: ""
   tag: "latest"
   pullPolicy: Always
 
 imagePullSecrets: []
+
+rollout:
+  revision: ""
 
 nameOverride: ""
 fullnameOverride: "catalogueservice"
@@ -22,10 +25,13 @@ service:
 containerPort: 9004
 
 database:
-  host: nextgen-discover-postgres.cn0w84e2itpi.us-east-2.rds.amazonaws.com
+  host: ""
   port: 5432
   name: nextgendiscover_catalogue
   secretName: catalogueservice-db
+
+istio:
+  enabled: false
 
 podAnnotations: {}
 podLabels: {}

@@ -1,0 +1,75 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: nextgen-discover
+  namespace: argocd
+spec:
+  project: default
+  sources:
+    - repoURL: https://github.com/Surya-Dasari/nextgen-discover.git
+      targetRevision: dev
+      ref: values
+    - repoURL: https://github.com/Surya-Dasari/nextgen-discover.git
+      targetRevision: dev
+      path: infrastructure/helm/db-bootstrap
+      helm:
+        releaseName: database-bootstrap
+        valueFiles:
+          - $values/gitops/environments/aws-eks/values/db-bootstrap.yaml
+    - repoURL: https://github.com/Surya-Dasari/nextgen-discover.git
+      targetRevision: dev
+      path: infrastructure/helm/apiservice
+      helm:
+        releaseName: apiservice
+        valueFiles:
+          - $values/gitops/environments/aws-eks/values/apiservice.yaml
+          - $values/gitops/environments/aws-eks/values/rollout.yaml
+    - repoURL: https://github.com/Surya-Dasari/nextgen-discover.git
+      targetRevision: dev
+      path: infrastructure/helm/authservice
+      helm:
+        releaseName: authservice
+        valueFiles:
+          - $values/gitops/environments/aws-eks/values/authservice.yaml
+          - $values/gitops/environments/aws-eks/values/rollout.yaml
+    - repoURL: https://github.com/Surya-Dasari/nextgen-discover.git
+      targetRevision: dev
+      path: infrastructure/helm/userservice
+      helm:
+        releaseName: userservice
+        valueFiles:
+          - $values/gitops/environments/aws-eks/values/userservice.yaml
+          - $values/gitops/environments/aws-eks/values/rollout.yaml
+    - repoURL: https://github.com/Surya-Dasari/nextgen-discover.git
+      targetRevision: dev
+      path: infrastructure/helm/catalogueservice
+      helm:
+        releaseName: catalogueservice
+        valueFiles:
+          - $values/gitops/environments/aws-eks/values/catalogueservice.yaml
+          - $values/gitops/environments/aws-eks/values/rollout.yaml
+    - repoURL: https://github.com/Surya-Dasari/nextgen-discover.git
+      targetRevision: dev
+      path: infrastructure/helm/notificationservice
+      helm:
+        releaseName: notificationservice
+        valueFiles:
+          - $values/gitops/environments/aws-eks/values/notificationservice.yaml
+          - $values/gitops/environments/aws-eks/values/rollout.yaml
+    - repoURL: https://github.com/Surya-Dasari/nextgen-discover.git
+      targetRevision: dev
+      path: infrastructure/helm/frontend
+      helm:
+        releaseName: frontend
+        valueFiles:
+          - $values/gitops/environments/aws-eks/values/frontend.yaml
+          - $values/gitops/environments/aws-eks/values/rollout.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: nextgen-discover
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

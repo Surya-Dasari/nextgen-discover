@@ -2,11 +2,14 @@
 replicaCount: 2
 
 image:
-  repository: 659071697866.dkr.ecr.us-east-2.amazonaws.com/nextgen-discover/frontend
+  repository: ""
   tag: "latest"
   pullPolicy: Always
 
 imagePullSecrets: []
+
+rollout:
+  revision: ""
 
 fullnameOverride: "frontend"
 
@@ -22,23 +25,18 @@ containerPort: 9080
 
 
 ingress:
-  enabled: true
-  className: alb
-  annotations:
-    alb.ingress.kubernetes.io/scheme: internet-facing
-    alb.ingress.kubernetes.io/target-type: ip
-    
-    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80}]'
-    alb.ingress.kubernetes.io/backend-protocol: HTTP
-    alb.ingress.kubernetes.io/healthcheck-protocol: HTTP
-    alb.ingress.kubernetes.io/healthcheck-path: /health
-    alb.ingress.kubernetes.io/success-codes: "200-399"
-    
+  enabled: false
+  className: ""
+  annotations: {}
   path: /
   pathType: Prefix
+
 api:
   baseUrl: "/api"
-  gatewayUrl: "https://tyug42sb9j.execute-api.us-east-2.amazonaws.com/dev"
+  gatewayUrl: ""
+
+istio:
+  enabled: false
 
 podAnnotations: {}
 podLabels: {}

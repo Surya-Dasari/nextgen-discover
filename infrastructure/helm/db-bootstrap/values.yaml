@@ -2,43 +2,37 @@ serviceAccount:
   create: true
   name: database-bootstrap
   annotations: {}
-
 database:
   host: ""
   port: 5432
   adminDatabase: postgres
+  instanceGeneration: ""
   names:
-    - nextgendiscover
-    - nextgendiscover_catalogue
-
+  - nextgendiscover
+  - nextgendiscover_catalogue
 aws:
-  region: us-east-2
+  region: ""
   secretArn: ""
-
 job:
   backoffLimit: 4
   activeDeadlineSeconds: 300
   ttlSecondsAfterFinished: 86400
-
 image:
-  repository: public.ecr.aws/docker/library/postgres
-  tag: "17"
-  pullPolicy: IfNotPresent
-
+  repository: ""
+  tag: latest
+  pullPolicy: Always
 podSecurityContext:
   runAsNonRoot: true
-  runAsUser: 999
-  runAsGroup: 999
+  runAsUser: 10001
+  runAsGroup: 10001
   seccompProfile:
     type: RuntimeDefault
-
 securityContext:
   allowPrivilegeEscalation: false
   readOnlyRootFilesystem: true
   capabilities:
     drop:
-      - ALL
-
+    - ALL
 resources:
   requests:
     cpu: 100m

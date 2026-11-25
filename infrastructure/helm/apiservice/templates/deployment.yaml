@@ -20,6 +20,12 @@ spec:
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
+        {{- if .Values.rollout.revision }}
+        nextgen-discover.io/rollout-revision: {{ .Values.rollout.revision | quote }}
+        {{- end }}
+        {{- if .Values.istio.enabled }}
+        sidecar.istio.io/inject: "true"
+        {{- end }}
     spec:
       automountServiceAccountToken: false
       serviceAccountName: {{ include "apiservice.serviceAccountName" . }}

@@ -1,0 +1,22 @@
+serviceAccount:
+  create: true
+  name: database-bootstrap
+  annotations: {}
+
+database:
+  host: nextgen-discover-postgres.cn0w84e2itpi.us-east-2.rds.amazonaws.com
+  port: 5432
+  adminDatabase: postgres
+  instanceGeneration: db-WKK3B7LB7EH55DTBIGBYBMPLHQ
+  names:
+    - nextgendiscover
+    - nextgendiscover_catalogue
+
+aws:
+  region: us-east-2
+  secretArn: arn:aws:secretsmanager:us-east-2:659071697866:secret:rds!db-6f8927ac-5e7c-4d3b-a816-23e33cdcd7fc-f52lvL
+
+image:
+  repository: 659071697866.dkr.ecr.us-east-2.amazonaws.com/nextgen-discover/database-bootstrap
+  tag: latest
+  pullPolicy: Always

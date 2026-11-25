@@ -1,0 +1,10 @@
+image:
+  repository: 659071697866.dkr.ecr.us-east-2.amazonaws.com/nextgen-discover/auth
+  tag: latest
+  pullPolicy: Always
+
+downstream:
+  userServiceUrl: http://userservice-userservice.nextgen-discover.svc.cluster.local:9002
+
+istio:
+  enabled: false

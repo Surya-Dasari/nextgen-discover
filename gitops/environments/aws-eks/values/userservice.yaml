@@ -1,0 +1,19 @@
+image:
+  repository: 659071697866.dkr.ecr.us-east-2.amazonaws.com/nextgen-discover/user
+  tag: latest
+  pullPolicy: Always
+
+database:
+  host: nextgen-discover-postgres.cn0w84e2itpi.us-east-2.rds.amazonaws.com
+  port: 5432
+  name: nextgendiscover
+  secretName: userservice-db
+
+kafka:
+  bootstrapServers: nextgen-kafka-kafka-bootstrap.nextgen-kafka.svc:9093
+  topic: user.registered
+  producerSecretName: user-service-producer
+  clusterCASecretName: nextgen-kafka-cluster-ca-cert
+
+istio:
+  enabled: false
