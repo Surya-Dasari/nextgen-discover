@@ -1,0 +1,413 @@
+pipeline {
+    agent any
+
+    options {
+        timestamps()
+        disableConcurrentBuilds()
+        timeout(time: 90, unit: 'MINUTES')
+        skipDefaultCheckout(true)
+    }
+
+    environment {
+        AWS_PROFILE = 'nextgen-jenkins'
+        AWS_REGION = 'us-east-2'
+        AWS_DEFAULT_REGION = 'us-east-2'
+
+        EKS_CLUSTER_NAME = 'nextgen-discover-eks'
+
+        STRIMZI_VERSION = '1.3.1'
+        STRIMZI_NAMESPACE = 'nextgen-kafka'
+        KAFKA_NAMESPACE = 'nextgen-kafka'
+
+        ISTIO_VERSION = '1.32.0'
+        ISTIO_NAMESPACE = 'istio-system'
+    }
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                checkout scm
+
+                sh '''
+                    set -eu
+
+                    echo "===== SOURCE CHECKOUT ====="
+                    git rev-parse --short HEAD
+                    git status --short
+                '''
+            }
+        }
+
+        stage('Validate Required Tools') {
+            steps {
+                sh '''
+                    set -eu
+
+                    echo "===== TOOL VALIDATION ====="
+
+                    command -v aws
+                    command -v kubectl
+                    command -v helm
+
+                    aws --version
+                    kubectl version --client
+                    helm version --short
+
+                    echo "SUCCESS: Required tools are available."
+                '''
+            }
+        }
+
+        stage('Validate AWS Identity') {
+            steps {
+                sh '''
+                    set -eu
+
+                    echo "===== AWS IDENTITY ====="
+
+                    aws sts get-caller-identity \
+                      --profile "$AWS_PROFILE" \
+                      --region "$AWS_REGION"
+
+                    echo "SUCCESS: AWS identity validated."
+                '''
+            }
+        }
+
+        stage('Validate EKS Cluster') {
+            steps {
+                sh '''
+                    set -eu
+
+                    echo "===== EKS CLUSTER STATUS ====="
+
+                    CLUSTER_STATUS="$(
+                        aws eks describe-cluster \
+                          --name "$EKS_CLUSTER_NAME" \
+                          --region "$AWS_REGION" \
+                          --profile "$AWS_PROFILE" \
+                          --query 'cluster.status' \
+                          --output text
+                    )"
+
+                    if [ "$CLUSTER_STATUS" != "ACTIVE" ]; then
+                        echo "ERROR: EKS cluster is not ACTIVE."
+                        echo "Current status: $CLUSTER_STATUS"
+                        exit 1
+                    fi
+
+                    echo "SUCCESS: EKS cluster is ACTIVE."
+
+                    aws eks update-kubeconfig \
+                      --name "$EKS_CLUSTER_NAME" \
+                      --region "$AWS_REGION" \
+                      --profile "$AWS_PROFILE"
+
+                    kubectl cluster-info
+
+                    kubectl wait \
+                      --for=condition=Ready \
+                      nodes \
+                      --all \
+                      --timeout=10m
+
+                    kubectl get nodes -o wide
+
+                    echo "SUCCESS: Kubernetes connectivity validated."
+                '''
+            }
+        }
+
+        stage('Validate EBS CSI Driver') {
+            steps {
+                sh '''
+                    set -eu
+
+                    echo "===== EBS CSI ADD-ON STATUS ====="
+
+                    ADDON_STATUS="$(
+                        aws eks describe-addon \
+                          --cluster-name "$EKS_CLUSTER_NAME" \
+                          --addon-name aws-ebs-csi-driver \
+                          --region "$AWS_REGION" \
+                          --profile "$AWS_PROFILE" \
+                          --query 'addon.status' \
+                          --output text
+                    )"
+
+                    if [ "$ADDON_STATUS" != "ACTIVE" ]; then
+                        echo "ERROR: EBS CSI add-on is not ACTIVE."
+                        exit 1
+                    fi
+
+                    kubectl rollout status \
+                      deployment/ebs-csi-controller \
+                      -n kube-system \
+                      --timeout=5m
+
+                    echo "SUCCESS: EBS CSI driver is healthy."
+                '''
+            }
+        }
+
+        stage('Configure Kubernetes Storage') {
+            steps {
+                sh '''
+                    set -eu
+
+                    STORAGE_CLASS_FILE="infrastructure/terraform/infrastructure/infrastructure/kubernetes/storage/gp3-storageclass.yaml"
+
+                    echo "===== APPLYING GP3 STORAGE CLASS ====="
+
+                    if [ ! -f "$STORAGE_CLASS_FILE" ]; then
+                        echo "ERROR: gp3 StorageClass manifest not found."
+                        exit 1
+                    fi
+
+                    kubectl apply -f "$STORAGE_CLASS_FILE"
+
+                    kubectl get storageclass gp3
+
+                    echo "SUCCESS: gp3 StorageClass configured."
+                '''
+            }
+        }
+
+        stage('Prepare Platform Namespaces') {
+            steps {
+                sh '''
+                    set -eu
+
+                    echo "===== PREPARING NAMESPACES ====="
+
+                    kubectl create namespace "$STRIMZI_NAMESPACE" \
+                      --dry-run=client -o yaml | kubectl apply -f -
+
+                    kubectl create namespace "$KAFKA_NAMESPACE" \
+                      --dry-run=client -o yaml | kubectl apply -f -
+
+                    kubectl create namespace "$ISTIO_NAMESPACE" \
+                      --dry-run=client -o yaml | kubectl apply -f -
+
+                    kubectl get namespaces
+
+                    echo "SUCCESS: Platform namespaces are ready."
+                '''
+            }
+        }
+
+        stage('Platform Deployment Approval') {
+            steps {
+                timeout(time: 30, unit: 'MINUTES') {
+                    input(
+                        message: 'EKS prerequisites are healthy. Approve Strimzi, Kafka, and Istio installation?',
+                        ok: 'Approve Platform Installation'
+                    )
+                }
+            }
+        }
+
+        stage('Install Strimzi Operator') {
+            steps {
+                sh '''
+                    set -eu
+
+                    echo "===== INSTALLING STRIMZI ====="
+
+                    helm repo add strimzi https://strimzi.io/charts/ \
+                      --force-update
+
+                    helm repo update strimzi
+
+                    helm upgrade --install strimzi-cluster-operator \
+                      strimzi/strimzi-kafka-operator \
+                      --version "$STRIMZI_VERSION" \
+                      --namespace "$STRIMZI_NAMESPACE" \
+                      --set-string 'watchNamespaces[0]=nextgen-kafka' \
+                      --values infrastructure/kubernetes/strimzi/values.yaml \
+                      --wait \
+                      --timeout 10m
+
+                    kubectl rollout status \
+                      deployment/strimzi-cluster-operator \
+                      -n "$STRIMZI_NAMESPACE" \
+                      --timeout=10m
+
+                    echo "SUCCESS: Strimzi Operator installed."
+                '''
+            }
+        }
+
+        stage('Validate Strimzi CRDs') {
+            steps {
+                sh '''
+                    set -eu
+
+                    echo "===== VALIDATING STRIMZI CRDs ====="
+
+                    for CRD in \
+                      kafkas.kafka.strimzi.io \
+                      kafkanodepools.kafka.strimzi.io \
+                      kafkausers.kafka.strimzi.io \
+                      kafkatopics.kafka.strimzi.io
+                    do
+                        kubectl wait \
+                          --for=condition=Established \
+                          "crd/$CRD" \
+                          --timeout=5m
+                    done
+
+                    kubectl get crds | grep strimzi
+
+                    echo "SUCCESS: Required Strimzi CRDs are established."
+                '''
+            }
+        }
+
+        stage('Deploy Kafka Resources') {
+            steps {
+                sh '''
+                    set -eu
+
+                    echo "===== APPLYING EXISTING KAFKA MANIFESTS ====="
+
+                    kubectl apply \
+                      -f infrastructure/kubernetes/kafka/
+
+                    echo "SUCCESS: Kafka manifests submitted."
+                '''
+            }
+        }
+
+        stage('Validate Kafka Cluster') {
+            steps {
+                sh '''
+                    set -eu
+
+                    echo "===== WAITING FOR KAFKA READINESS ====="
+
+                    kubectl wait \
+                      --for=condition=Ready \
+                      kafka/nextgen-kafka \
+                      -n "$KAFKA_NAMESPACE" \
+                      --timeout=30m
+
+                    kubectl get kafka -n "$KAFKA_NAMESPACE"
+                    kubectl get kafkanodepool -n "$KAFKA_NAMESPACE"
+                    kubectl get kafkauser -n "$KAFKA_NAMESPACE"
+                    kubectl get kafkatopic -n "$KAFKA_NAMESPACE"
+
+                    kubectl get pods -n "$KAFKA_NAMESPACE" -o wide
+
+                    echo "SUCCESS: Kafka platform is ready."
+                '''
+            }
+        }
+
+        stage('Install Istio Base') {
+            steps {
+                sh '''
+                    set -eu
+
+                    echo "===== INSTALLING ISTIO BASE ====="
+
+                    helm repo add istio \
+                      https://blob.istio.io/istio-release/charts \
+                      --force-update
+
+                    helm repo update istio
+
+                    helm upgrade --install istio-base istio/base \
+                      --namespace "$ISTIO_NAMESPACE" \
+                      --version "$ISTIO_VERSION" \
+                      --set defaultRevision=default \
+                      --wait \
+                      --timeout 10m
+
+                    echo "SUCCESS: Istio Base installed."
+                '''
+            }
+        }
+
+        stage('Validate Istio CRDs') {
+            steps {
+                sh '''
+                    set -eu
+
+                    echo "===== VALIDATING ISTIO CRDs ====="
+
+                    for CRD in \
+                      authorizationpolicies.security.istio.io \
+                      peerauthentications.security.istio.io \
+                      requestauthentications.security.istio.io \
+                      destinationrules.networking.istio.io \
+                      virtualservices.networking.istio.io \
+                      gateways.networking.istio.io
+                    do
+                        kubectl wait \
+                          --for=condition=Established \
+                          "crd/$CRD" \
+                          --timeout=5m
+                    done
+
+                    echo "SUCCESS: Required Istio CRDs are established."
+                '''
+            }
+        }
+
+        stage('Install Istiod Control Plane') {
+            steps {
+                sh '''
+                    set -eu
+
+                    echo "===== INSTALLING ISTIOD ====="
+
+                    helm upgrade --install istiod istio/istiod \
+                      --namespace "$ISTIO_NAMESPACE" \
+                      --version "$ISTIO_VERSION" \
+                      --wait \
+                      --timeout 10m
+
+                    echo "SUCCESS: Istiod installation completed."
+                '''
+            }
+        }
+
+        stage('Validate Istiod') {
+            steps {
+                sh '''
+                    set -eu
+
+                    echo "===== VALIDATING ISTIOD ====="
+
+                    kubectl rollout status \
+                      deployment/istiod \
+                      --namespace "$ISTIO_NAMESPACE" \
+                      --timeout=10m
+
+                    kubectl get pods \
+                      --namespace "$ISTIO_NAMESPACE" \
+                      -o wide
+
+                    echo "SUCCESS: Istiod control plane is ready."
+                '''
+            }
+        }
+
+    }
+
+    post {
+        success {
+            echo 'Platform pipeline completed successfully through Kafka and Istio deployment.'
+        }
+
+        failure {
+            echo 'Platform pipeline failed. Inspect the failed stage and Jenkins console output.'
+        }
+
+        always {
+            echo 'NextGen Discover platform pipeline execution finished.'
+        }
+    }
+}
