@@ -138,37 +138,6 @@ pipeline {
                         set +x
                         set -eu
 
-                        echo "===== RETRIEVING JWT PUBLIC KEY ====="
-
-                        command -v python3 >/dev/null 2>&1 || {
-                            echo "ERROR: Python3 is required."
-                            exit 1
-                        }
-
-                        export TF_VAR_jwt_public_key_pem="$(
-                            aws secretsmanager get-secret-value \\
-                              --secret-id nextgen-discover/jwt \\
-                              --region "$AWS_REGION" \\
-                              --profile "$AWS_PROFILE" \\
-                              --query SecretString \\
-                              --output text |
-                            python3 -c 'import json,sys; print(json.load(sys.stdin)["jwt_public_key_pem"], end="")'
-                        )"
-
-                        if [ -z "$TF_VAR_jwt_public_key_pem" ]; then
-                            echo "ERROR: JWT public key retrieval failed."
-                            exit 1
-                        fi
-
-                        echo "SUCCESS: JWT public key retrieved."
-
-                        # Supply JWT validation claims required by Terraform.
-                        export TF_VAR_jwt_issuer="nextgen-discover-auth"
-                        export TF_VAR_jwt_audience="nextgen-discover-api"
-
-                        echo "SUCCESS: JWT issuer and audience configured."
-
-
                         terraform plan \\
                           -input=false \\
                           -no-color \\

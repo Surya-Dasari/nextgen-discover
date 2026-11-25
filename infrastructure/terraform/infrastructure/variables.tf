@@ -30,20 +30,17 @@ variable "enable_api_integrations" {
 }
 
 
-variable "jwt_public_key_pem" {
-  description = "RS256 public key in PEM format for JWT verification"
-  type        = string
-  sensitive   = true
-}
 
 variable "jwt_issuer" {
   description = "Expected issuer claim in access tokens"
   type        = string
+  default     = "nextgen-discover-auth"
 }
 
 variable "jwt_audience" {
   description = "Expected audience claim in access tokens"
   type        = string
+  default     = "nextgen-discover-api"
 }
 
 

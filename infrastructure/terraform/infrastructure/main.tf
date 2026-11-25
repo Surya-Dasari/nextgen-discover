@@ -1,3 +1,14 @@
+# Retrieve the JWT public key from AWS Secrets Manager.
+data "aws_secretsmanager_secret_version" "jwt" {
+  secret_id = "nextgen-discover/jwt"
+}
+
+locals {
+  jwt_public_key_pem = jsondecode(
+    data.aws_secretsmanager_secret_version.jwt.secret_string
+  )["jwt_public_key_pem"]
+}
+
 
 # --------------------------------------------------
 # NextGen Discover VPC Module
@@ -232,7 +243,7 @@ module "lambda_authorizer" {
   source = "../modules/lambda-authorizer"
 
   project_name       = var.project_name
-  jwt_public_key_pem = var.jwt_public_key_pem
+  jwt_public_key_pem = local.jwt_public_key_pem
   jwt_issuer         = var.jwt_issuer
   jwt_audience       = var.jwt_audience
 
