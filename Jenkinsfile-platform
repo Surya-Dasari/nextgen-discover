@@ -26,6 +26,12 @@ pipeline {
         ARGOCD_NAMESPACE = 'argocd'
 
         METRICS_SERVER_MANIFEST = 'infrastructure/kubernetes/platform/metrics-server/components.yaml'
+
+        KARPENTER_VERSION = '1.15.3'
+        KARPENTER_RELEASE = 'karpenter'
+        KARPENTER_NAMESPACE = 'kube-system'
+        KARPENTER_VALUES = 'infrastructure/helm/karpenter/values.yaml'
+        KARPENTER_MANIFEST_DIR = 'infrastructure/kubernetes/karpenter'
     }
 
     stages {
@@ -269,10 +275,152 @@ pipeline {
             steps {
                 timeout(time: 30, unit: 'MINUTES') {
                     input(
-                        message: 'EKS prerequisites are healthy. Approve Strimzi, Kafka, and Istio installation?',
+                        message: 'EKS prerequisites are healthy. Approve Karpenter, Strimzi, Kafka, and Istio installation?',
                         ok: 'Approve Platform Installation'
                     )
                 }
+            }
+        }
+
+
+        stage('Validate Karpenter AWS Prerequisites') {
+            steps {
+                sh '''
+                    set -eu
+
+                    echo "===== VALIDATING KARPENTER AWS PREREQUISITES ====="
+
+                    ASSOCIATION_ID="$(
+                        aws eks list-pod-identity-associations \
+                          --cluster-name "$EKS_CLUSTER_NAME" \
+                          --namespace "$KARPENTER_NAMESPACE" \
+                          --service-account karpenter \
+                          --region "$AWS_REGION" \
+                          --profile "$AWS_PROFILE" \
+                          --query 'associations[0].associationId' \
+                          --output text
+                    )"
+
+                    if [ "$ASSOCIATION_ID" = "None" ] || [ -z "$ASSOCIATION_ID" ]; then
+                        echo "ERROR: Karpenter Pod Identity association not found."
+                        echo "Run the infrastructure pipeline before the platform pipeline."
+                        exit 1
+                    fi
+
+                    echo "Pod Identity association: $ASSOCIATION_ID"
+
+                    QUEUE_URL="$(
+                        aws sqs get-queue-url \
+                          --queue-name "$EKS_CLUSTER_NAME" \
+                          --region "$AWS_REGION" \
+                          --profile "$AWS_PROFILE" \
+                          --query 'QueueUrl' \
+                          --output text
+                    )"
+
+                    if [ -z "$QUEUE_URL" ] || [ "$QUEUE_URL" = "None" ]; then
+                        echo "ERROR: Karpenter interruption queue not found."
+                        exit 1
+                    fi
+
+                    echo "Interruption queue: $QUEUE_URL"
+                    echo "SUCCESS: Karpenter AWS prerequisites are available."
+                '''
+            }
+        }
+
+        stage('Install Karpenter Controller') {
+            steps {
+                sh '''
+                    set -eu
+
+                    echo "===== INSTALLING KARPENTER CONTROLLER ====="
+
+                    if [ ! -f "$KARPENTER_VALUES" ]; then
+                        echo "ERROR: Karpenter Helm values file not found."
+                        exit 1
+                    fi
+
+                    helm upgrade --install "$KARPENTER_RELEASE" \
+                      oci://public.ecr.aws/karpenter/karpenter \
+                      --version "$KARPENTER_VERSION" \
+                      --namespace "$KARPENTER_NAMESPACE" \
+                      --values "$KARPENTER_VALUES" \
+                      --wait \
+                      --timeout 15m
+
+                    echo "SUCCESS: Karpenter Helm installation completed."
+                '''
+            }
+        }
+
+        stage('Validate Karpenter Controller and CRDs') {
+            steps {
+                sh '''
+                    set -eu
+
+                    echo "===== VALIDATING KARPENTER CONTROLLER ====="
+
+                    kubectl rollout status \
+                      deployment/karpenter \
+                      --namespace "$KARPENTER_NAMESPACE" \
+                      --timeout=10m
+
+                    echo "===== VALIDATING KARPENTER CRDs ====="
+
+                    for CRD in \
+                      ec2nodeclasses.karpenter.k8s.aws \
+                      nodepools.karpenter.sh
+                    do
+                        kubectl wait \
+                          --for=condition=Established \
+                          "crd/$CRD" \
+                          --timeout=5m
+                    done
+
+                    kubectl get crds | grep karpenter
+
+                    echo "SUCCESS: Karpenter controller and CRDs are ready."
+                '''
+            }
+        }
+
+        stage('Deploy Karpenter Provisioning Resources') {
+            steps {
+                sh '''
+                    set -eu
+
+                    echo "===== APPLYING EC2 NODE CLASS ====="
+
+                    if [ ! -f "$KARPENTER_MANIFEST_DIR/ec2nodeclass.yaml" ] || \
+                       [ ! -f "$KARPENTER_MANIFEST_DIR/nodepool.yaml" ]; then
+                        echo "ERROR: Karpenter provisioning manifests are missing."
+                        exit 1
+                    fi
+
+                    kubectl apply \
+                      -f "$KARPENTER_MANIFEST_DIR/ec2nodeclass.yaml"
+
+                    kubectl wait \
+                      --for=condition=Ready \
+                      ec2nodeclass/nextgen-discover \
+                      --timeout=10m
+
+                    echo "===== APPLYING NODEPOOL ====="
+
+                    kubectl apply \
+                      -f "$KARPENTER_MANIFEST_DIR/nodepool.yaml"
+
+                    kubectl wait \
+                      --for=condition=Ready \
+                      nodepool/nextgen-discover \
+                      --timeout=5m
+
+                    kubectl get ec2nodeclass
+                    kubectl get nodepool
+
+                    echo "SUCCESS: Karpenter provisioning resources are ready."
+                '''
             }
         }
 

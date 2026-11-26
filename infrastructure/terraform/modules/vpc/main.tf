@@ -57,6 +57,7 @@ resource "aws_subnet" "this" {
     } : {},
     each.value.tier == "private-app" ? {
       "kubernetes.io/role/internal-elb" = "1"
+      "karpenter.sh/discovery"          = "nextgen-discover-eks"
     } : {}
   )
 }

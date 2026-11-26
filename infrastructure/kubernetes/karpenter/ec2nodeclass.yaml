@@ -1,0 +1,34 @@
+apiVersion: karpenter.k8s.aws/v1
+kind: EC2NodeClass
+metadata:
+  name: nextgen-discover
+spec:
+  # Dedicated IAM role created by the Terraform Karpenter module.
+  role: nextgen-discover-karpenter-node
+
+  # Amazon Linux 2023 EKS-optimized AMI.
+  amiSelectorTerms:
+    - alias: al2023@latest
+
+  # Discover only the tagged private application subnets.
+  subnetSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: nextgen-discover-eks
+
+  # Discover only the tagged EKS worker security group.
+  securityGroupSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: nextgen-discover-eks
+
+  # Use encrypted gp3 root volumes.
+  blockDeviceMappings:
+    - deviceName: /dev/xvda
+      ebs:
+        volumeSize: 30Gi
+        volumeType: gp3
+        encrypted: true
+        deleteOnTermination: true
+
+  tags:
+    Project: nextgen-discover
+    ManagedBy: Karpenter

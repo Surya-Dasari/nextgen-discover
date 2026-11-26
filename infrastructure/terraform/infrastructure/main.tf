@@ -218,6 +218,24 @@ locals {
 }
 
 # --------------------------------------------------
+# NextGen Discover Karpenter
+# --------------------------------------------------
+
+module "karpenter" {
+  source = "../modules/karpenter"
+
+  project_name = var.project_name
+  cluster_name = module.eks.cluster_name
+  tags = {
+    Project = var.project_name
+  }
+
+  depends_on = [
+    module.eks
+  ]
+}
+
+# --------------------------------------------------
 # NextGen Discover RDS PostgreSQL
 # --------------------------------------------------
 

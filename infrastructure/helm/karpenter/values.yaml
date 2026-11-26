@@ -1,0 +1,25 @@
+# Karpenter controller Helm configuration
+
+replicas: 1
+
+serviceAccount:
+  create: true
+  name: karpenter
+
+settings:
+  clusterName: nextgen-discover-eks
+  interruptionQueue: nextgen-discover-eks
+
+# Run the controller on existing general-purpose managed workers.
+nodeSelector:
+  Role: worker
+
+# Controller resource allocation.
+controller:
+  resources:
+    requests:
+      cpu: 1
+      memory: 1Gi
+    limits:
+      cpu: 1
+      memory: 1Gi

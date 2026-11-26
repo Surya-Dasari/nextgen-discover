@@ -39,8 +39,9 @@ resource "aws_security_group" "eks_workers" {
   vpc_id      = var.vpc_id
 
   tags = merge(var.tags, {
-    Name      = "${var.name}-eks-workers-sg"
-    Component = "eks"
+    Name                     = "${var.name}-eks-workers-sg"
+    Component                = "eks"
+    "karpenter.sh/discovery" = "nextgen-discover-eks"
   })
 }
 
