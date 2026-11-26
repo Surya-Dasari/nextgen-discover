@@ -99,3 +99,9 @@ variable "worker_security_group_id" {
   description = "Custom security group attached to EKS worker nodes"
   type        = string
 }
+
+variable "cluster_admin_principal_arns" {
+  description = "IAM principals granted EKS cluster administrator access"
+  type        = set(string)
+  default     = []
+}

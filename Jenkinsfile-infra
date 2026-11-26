@@ -78,6 +78,14 @@ pipeline {
                     aws sts get-caller-identity \
                       --query Arn \
                       --output text
+
+                    echo "===== EKS ADMIN ACCESS CONFIGURATION ====="
+                    if [ -z "${TF_VAR_additional_eks_admin_principal_arns:-}" ]; then
+                        echo "ERROR: Additional EKS administrator principals are not configured."
+                        exit 1
+                    fi
+
+                    echo "SUCCESS: Additional EKS administrator principals are configured."
                 '''
             }
         }

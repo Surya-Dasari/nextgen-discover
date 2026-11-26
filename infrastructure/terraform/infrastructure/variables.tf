@@ -88,3 +88,8 @@ variable "github_branch" {
   description = "Git branch allowed to assume the GitHub Actions IAM role"
   type        = string
 }
+variable "additional_eks_admin_principal_arns" {
+  description = "Additional IAM principals granted EKS cluster administrator access"
+  type        = set(string)
+  default     = []
+}

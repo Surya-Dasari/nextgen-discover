@@ -171,7 +171,8 @@ module "eks" {
 
   project_name = var.project_name
 
-  cluster_version = "1.37"
+  cluster_version              = "1.37"
+  cluster_admin_principal_arns = local.eks_admin_principal_arns
 
   cluster_role_arn = module.iam.eks_cluster_role_arn
   node_role_arn    = module.iam.eks_node_role_arn
@@ -204,6 +205,10 @@ module "eks" {
   ]
 }
 
+# Additional EKS administrator identities are supplied through Terraform variables.
+locals {
+  eks_admin_principal_arns = var.additional_eks_admin_principal_arns
+}
 
 # --------------------------------------------------
 # NextGen Discover RDS PostgreSQL
