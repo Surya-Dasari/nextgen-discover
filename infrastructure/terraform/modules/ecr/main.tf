@@ -4,6 +4,7 @@
 # --------------------------------------------------
 
 resource "aws_ecr_repository" "this" {
+  force_delete = true
   for_each = var.repository_names
 
   name                 = "${var.project_name}/${each.value}"
