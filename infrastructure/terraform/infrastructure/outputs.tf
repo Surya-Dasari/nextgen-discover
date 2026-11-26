@@ -27,3 +27,12 @@ output "api_gateway_vpc_link_arn" {
   description = "API Gateway VPC Link ARN"
   value       = module.api_gateway_waf.vpc_link_arn
 }
+
+# --------------------------------------------------
+# Loki S3 Storage
+# --------------------------------------------------
+
+output "loki_bucket_name" {
+  description = "S3 bucket name used by Loki log storage"
+  value       = module.loki_storage.bucket_name
+}

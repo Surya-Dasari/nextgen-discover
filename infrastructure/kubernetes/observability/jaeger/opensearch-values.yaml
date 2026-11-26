@@ -1,0 +1,7 @@
+# DEPRECATED
+#
+# OpenSearch configuration is maintained in:
+# infrastructure/kubernetes/observability/opensearch/values.yaml
+#
+# Helm deployment must use the dedicated OpenSearch values file.
+# Do not use this file for OpenSearch installation.

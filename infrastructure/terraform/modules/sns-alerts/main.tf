@@ -36,9 +36,9 @@ resource "aws_iam_role" "alertmanager" {
 
       Condition = {
         StringEquals = {
-          "aws:RequestTag/kubernetes-namespace" = var.namespace
+          "aws:RequestTag/kubernetes-namespace"       = var.namespace
           "aws:RequestTag/kubernetes-service-account" = var.service_account
-          "aws:RequestTag/eks-cluster-arn" = var.cluster_arn
+          "aws:RequestTag/eks-cluster-arn"            = var.cluster_arn
         }
       }
     }]
@@ -75,7 +75,7 @@ resource "aws_iam_role_policy" "alertmanager_publish" {
       Effect   = "Allow"
       Action   = ["sns:Publish"]
       Resource = aws_sns_topic.alerts.arn
-    }, {
+      }, {
       Sid    = "UseSNSManagedEncryptionKey"
       Effect = "Allow"
 

@@ -25,9 +25,22 @@ pipeline {
         PROMETHEUS_RELEASE = 'kube-prometheus-stack'
         PROMETHEUS_VERSION = '93.10.1'
 
+        LOKI_RELEASE       = 'loki'
+        LOKI_VERSION       = '21.6.0'
+        ALLOY_RELEASE      = 'alloy'
+        ALLOY_VERSION      = '1.16.0'
+
+        TF_ROOT            = 'infrastructure/terraform/infrastructure'
+        TF_STATE_BUCKET    = 'nextgen-discover-terraform-state-659071697866-us-east-2'
+        TF_STATE_KEY       = 'infrastructure/terraform.tfstate'
+        LOKI_BUCKET_FILE   = "${WORKSPACE}/loki-bucket-name"
+
         OPENSEARCH_VALUES = 'infrastructure/kubernetes/observability/opensearch/values.yaml'
         JAEGER_VALUES     = 'infrastructure/kubernetes/observability/jaeger/values.yaml'
         PROMETHEUS_VALUES = 'infrastructure/kubernetes/observability/prometheus/values.yaml'
+        LOKI_VALUES       = 'infrastructure/kubernetes/observability/loki/values.yaml'
+        ALLOY_VALUES      = 'infrastructure/kubernetes/observability/alloy/values.yaml'
+        GRAFANA_LOKI_DATASOURCE = 'infrastructure/kubernetes/observability/grafana/loki-datasource.yaml'
         SNS_TOPIC_NAME     = 'nextgen-discover-alerts'
         SNS_RENDERED_VALUES = "${WORKSPACE}/prometheus-values-rendered.yaml"
 
@@ -59,11 +72,15 @@ pipeline {
                     aws --version
                     kubectl version --client
                     helm version --short
+                    terraform version
 
                     echo "===== REQUIRED CONFIGURATION ====="
                     test -f "$OPENSEARCH_VALUES"
                     test -f "$JAEGER_VALUES"
                     test -f "$PROMETHEUS_VALUES"
+                    test -f "$LOKI_VALUES"
+                    test -f "$ALLOY_VALUES"
+                    test -f "$GRAFANA_LOKI_DATASOURCE"
 
                     echo "SUCCESS: Required tools and values files exist."
                 '''
@@ -141,6 +158,81 @@ pipeline {
             }
         }
 
+        stage('Resolve Loki Storage Configuration') {
+            steps {
+                sh '''
+                    set -eu
+
+                    echo "===== INITIALIZING TERRAFORM BACKEND ====="
+
+                    terraform -chdir="$TF_ROOT" init \
+                        -input=false \
+                        -reconfigure \
+                        -backend-config="bucket=$TF_STATE_BUCKET" \
+                        -backend-config="key=$TF_STATE_KEY" \
+                        -backend-config="region=$AWS_REGION" \
+                        -backend-config="encrypt=true" \
+                        -backend-config="use_lockfile=true"
+
+                    LOKI_BUCKET_NAME=$(terraform -chdir="$TF_ROOT" output -raw loki_bucket_name)
+
+                    if [ -z "$LOKI_BUCKET_NAME" ]; then
+                        echo "ERROR: Loki bucket output is empty."
+                        exit 1
+                    fi
+
+                    printf '%s' "$LOKI_BUCKET_NAME" > "$LOKI_BUCKET_FILE"
+
+                    echo "===== VERIFYING LOKI S3 BUCKET ====="
+                    aws s3api head-bucket --bucket "$LOKI_BUCKET_NAME"
+
+                    echo "===== VERIFYING EKS POD IDENTITY ====="
+
+                    ASSOCIATION_ID=$(aws eks list-pod-identity-associations \
+                        --cluster-name "$CLUSTER_NAME" \
+                        --namespace "$OBS_NAMESPACE" \
+                        --service-account loki \
+                        --query 'associations[0].associationId' \
+                        --output text)
+
+                    if [ -z "$ASSOCIATION_ID" ] || [ "$ASSOCIATION_ID" = "None" ]; then
+                        echo "ERROR: Loki Pod Identity association not found."
+                        exit 1
+                    fi
+
+                    ASSOCIATION_NAMESPACE=$(aws eks describe-pod-identity-association \
+                        --cluster-name "$CLUSTER_NAME" \
+                        --association-id "$ASSOCIATION_ID" \
+                        --query 'association.namespace' \
+                        --output text)
+
+                    ASSOCIATION_SERVICE_ACCOUNT=$(aws eks describe-pod-identity-association \
+                        --cluster-name "$CLUSTER_NAME" \
+                        --association-id "$ASSOCIATION_ID" \
+                        --query 'association.serviceAccount' \
+                        --output text)
+
+                    ASSOCIATION_ROLE_ARN=$(aws eks describe-pod-identity-association \
+                        --cluster-name "$CLUSTER_NAME" \
+                        --association-id "$ASSOCIATION_ID" \
+                        --query 'association.roleArn' \
+                        --output text)
+
+                    if [ "$ASSOCIATION_NAMESPACE" != "$OBS_NAMESPACE" ] ||
+                       [ "$ASSOCIATION_SERVICE_ACCOUNT" != "loki" ] ||
+                       [ -z "$ASSOCIATION_ROLE_ARN" ] ||
+                       [ "$ASSOCIATION_ROLE_ARN" = "None" ]; then
+                        echo "ERROR: Loki Pod Identity association details are invalid."
+                        exit 1
+                    fi
+
+                    echo "SUCCESS: Loki Pod Identity association verified."
+
+                    echo "SUCCESS: Loki storage prerequisites verified."
+                '''
+            }
+        }
+
         stage('Prepare Helm Charts') {
             steps {
                 sh '''
@@ -158,6 +250,14 @@ pipeline {
 
                     helm repo add prometheus-community \
                         https://prometheus-community.github.io/helm-charts \
+                        --force-update
+
+                    helm repo add grafana-community \
+                        https://grafana-community.github.io/helm-charts \
+                        --force-update
+
+                    helm repo add grafana \
+                        https://grafana.github.io/helm-charts \
                         --force-update
 
                     helm repo update
@@ -208,6 +308,26 @@ pipeline {
                         --untar \
                         --untardir "$CHART_DIR"
 
+                    helm pull grafana-community/loki \
+                        --version "$LOKI_VERSION" \
+                        --untar \
+                        --untardir "$CHART_DIR"
+
+                    helm pull grafana/alloy \
+                        --version "$ALLOY_VERSION" \
+                        --untar \
+                        --untardir "$CHART_DIR"
+
+                    LOKI_BUCKET_NAME=$(cat "$LOKI_BUCKET_FILE")
+
+                    sed "s|__LOKI_BUCKET_NAME__|$LOKI_BUCKET_NAME|g" \
+                        "$LOKI_VALUES" > "$CHART_DIR/loki-values-resolved.yaml"
+
+                    if grep -q '__LOKI_BUCKET_NAME__' "$CHART_DIR/loki-values-resolved.yaml"; then
+                        echo "ERROR: Loki bucket placeholder was not replaced."
+                        exit 1
+                    fi
+
                     echo "===== HELM LINT ====="
 
                     helm lint "$CHART_DIR/opensearch" \
@@ -218,6 +338,12 @@ pipeline {
 
                     helm lint "$CHART_DIR/kube-prometheus-stack" \
                         --values "$SNS_RENDERED_VALUES"
+
+                    helm lint "$CHART_DIR/loki" \
+                        --values "$CHART_DIR/loki-values-resolved.yaml"
+
+                    helm lint "$CHART_DIR/alloy" \
+                        --values "$ALLOY_VALUES"
 
                     echo "===== HELM TEMPLATE VALIDATION ====="
 
@@ -239,7 +365,19 @@ pipeline {
                         --values "$SNS_RENDERED_VALUES" \
                         > "$WORKSPACE/prometheus-rendered.yaml"
 
-                    echo "SUCCESS: All three charts validated."
+                    helm template "$LOKI_RELEASE" \
+                        "$CHART_DIR/loki" \
+                        --namespace "$OBS_NAMESPACE" \
+                        --values "$CHART_DIR/loki-values-resolved.yaml" \
+                        > "$WORKSPACE/loki-rendered.yaml"
+
+                    helm template "$ALLOY_RELEASE" \
+                        "$CHART_DIR/alloy" \
+                        --namespace "$OBS_NAMESPACE" \
+                        --values "$ALLOY_VALUES" \
+                        > "$WORKSPACE/alloy-rendered.yaml"
+
+                    echo "SUCCESS: All five charts validated."
                 '''
             }
         }
@@ -248,7 +386,7 @@ pipeline {
             steps {
                 script {
                     input(
-                        message: 'Approve OpenSearch, Jaeger and Prometheus stack deployment?',
+                        message: 'Approve OpenSearch, Jaeger, Prometheus, Grafana, Loki and Alloy stack deployment?',
                         ok: 'Deploy Observability Stack'
                     )
                 }
@@ -405,6 +543,54 @@ pipeline {
             }
         }
 
+        stage('Configure Grafana Loki Datasource') {
+            steps {
+                sh '''
+                    set -eu
+                    kubectl apply -f "$GRAFANA_LOKI_DATASOURCE"
+                    kubectl get configmap grafana-datasource-loki \
+                        --namespace "$OBS_NAMESPACE"
+                '''
+            }
+        }
+
+        stage('Deploy Loki') {
+            steps {
+                sh '''
+                    set -eu
+
+                    helm upgrade --install "$LOKI_RELEASE" \
+                        "$CHART_DIR/loki" \
+                        --namespace "$OBS_NAMESPACE" \
+                        --values "$CHART_DIR/loki-values-resolved.yaml" \
+                        --wait \
+                        --timeout 20m
+
+                    kubectl get service loki-gateway \
+                        --namespace "$OBS_NAMESPACE"
+                '''
+            }
+        }
+
+        stage('Deploy Grafana Alloy') {
+            steps {
+                sh '''
+                    set -eu
+
+                    helm upgrade --install "$ALLOY_RELEASE" \
+                        "$CHART_DIR/alloy" \
+                        --namespace "$OBS_NAMESPACE" \
+                        --values "$ALLOY_VALUES" \
+                        --wait \
+                        --timeout 15m
+
+                    kubectl rollout status daemonset/alloy \
+                        --namespace "$OBS_NAMESPACE" \
+                        --timeout=10m
+                '''
+            }
+        }
+
         stage('Deployment Verification') {
             steps {
                 sh '''
@@ -456,6 +642,12 @@ pipeline {
                     kubectl get service nextgen-jaeger-master \
                         --namespace "$OBS_NAMESPACE"
 
+                    kubectl get service loki-gateway \
+                        --namespace "$OBS_NAMESPACE"
+
+                    kubectl get configmap grafana-datasource-loki \
+                        --namespace "$OBS_NAMESPACE"
+
                     echo "SUCCESS: Observability deployment verification completed."
                 '''
             }
@@ -464,7 +656,7 @@ pipeline {
 
     post {
         success {
-            echo 'Pipeline 3: OpenSearch, Jaeger, Prometheus, Grafana and Alertmanager deployment completed.'
+            echo 'Pipeline 3: OpenSearch, Jaeger, Prometheus, Grafana, Loki, Alloy and Alertmanager deployment completed.'
         }
 
         failure {

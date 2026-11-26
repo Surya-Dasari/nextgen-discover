@@ -1,0 +1,44 @@
+# NextGen Discover - Loki 21.6.0
+# Jenkins must replace __LOKI_BUCKET_NAME__ with Terraform output loki_bucket_name.
+
+deploymentMode: Monolithic
+
+loki:
+  auth_enabled: false
+
+  schemaConfig:
+    configs:
+      - from: "2026-01-01"
+        store: tsdb
+        object_store: s3
+        schema: v13
+        index:
+          prefix: index_
+          period: 24h
+
+  storage:
+    type: s3
+    bucketNames:
+      chunks: __LOKI_BUCKET_NAME__
+      ruler: __LOKI_BUCKET_NAME__
+    s3:
+      region: us-east-2
+
+  commonConfig:
+    replication_factor: 1
+
+  compactor:
+    retention_enabled: true
+    delete_request_store: s3
+
+  limits_config:
+    retention_period: 720h
+
+  serviceAccount:
+    create: true
+    name: loki
+    automountServiceAccountToken: true
+
+gateway:
+  enabled: true
+  replicas: 1
