@@ -93,3 +93,14 @@ variable "additional_eks_admin_principal_arns" {
   type        = set(string)
   default     = []
 }
+
+# --------------------------------------------------
+# Alertmanager SNS Email Notifications
+# --------------------------------------------------
+
+variable "alertmanager_email" {
+  description = "Optional email address receiving Alertmanager SNS notifications"
+  type        = string
+  default     = null
+  nullable    = true
+}

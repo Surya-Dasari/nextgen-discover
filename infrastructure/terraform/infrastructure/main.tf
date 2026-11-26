@@ -317,3 +317,27 @@ module "api_gateway_waf" {
     aws_api_gateway_account.main
   ]
 }
+
+# --------------------------------------------------
+# NextGen Discover Alertmanager SNS Notifications
+# --------------------------------------------------
+
+module "sns_alerts" {
+  source = "../modules/sns-alerts"
+
+  project_name    = var.project_name
+  cluster_name    = module.eks.cluster_name
+  cluster_arn     = module.eks.cluster_arn
+  namespace       = "observability"
+  service_account = "kube-prometheus-stack-alertmanager"
+  email_endpoint  = var.alertmanager_email
+
+  tags = {
+    Project   = var.project_name
+    Component = "observability"
+  }
+
+  depends_on = [
+    module.eks
+  ]
+}

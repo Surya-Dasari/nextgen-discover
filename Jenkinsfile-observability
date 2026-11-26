@@ -28,6 +28,8 @@ pipeline {
         OPENSEARCH_VALUES = 'infrastructure/kubernetes/observability/opensearch/values.yaml'
         JAEGER_VALUES     = 'infrastructure/kubernetes/observability/jaeger/values.yaml'
         PROMETHEUS_VALUES = 'infrastructure/kubernetes/observability/prometheus/values.yaml'
+        SNS_TOPIC_NAME     = 'nextgen-discover-alerts'
+        SNS_RENDERED_VALUES = "${WORKSPACE}/prometheus-values-rendered.yaml"
 
         CHART_DIR         = "${WORKSPACE}/.helm"
         KUBECONFIG        = "${WORKSPACE}/.kube/config"
@@ -160,6 +162,32 @@ pipeline {
 
                     helm repo update
 
+                    echo "===== PREPARING SNS ALERTMANAGER CONFIGURATION ====="
+
+                    AWS_ACCOUNT_ID=$(aws sts get-caller-identity \
+                        --query Account \
+                        --output text)
+
+                    SNS_TOPIC_ARN="arn:aws:sns:${AWS_REGION}:${AWS_ACCOUNT_ID}:${SNS_TOPIC_NAME}"
+
+                    aws sns get-topic-attributes \
+                        --topic-arn "$SNS_TOPIC_ARN" > /dev/null
+
+                    if ! grep -q '__SNS_TOPIC_ARN__' "$PROMETHEUS_VALUES"; then
+                        echo "ERROR: SNS topic ARN placeholder is missing from Prometheus values."
+                        exit 1
+                    fi
+
+                    sed "s|__SNS_TOPIC_ARN__|${SNS_TOPIC_ARN}|g" \
+                        "$PROMETHEUS_VALUES" > "$SNS_RENDERED_VALUES"
+
+                    if grep -q '__SNS_TOPIC_ARN__' "$SNS_RENDERED_VALUES"; then
+                        echo "ERROR: SNS topic ARN placeholder was not replaced."
+                        exit 1
+                    fi
+
+                    echo "SUCCESS: SNS topic verified and temporary Helm values rendered."
+
                     echo "===== DOWNLOADING PINNED CHARTS ====="
 
                     rm -rf "$CHART_DIR"
@@ -189,7 +217,7 @@ pipeline {
                         --values "$JAEGER_VALUES"
 
                     helm lint "$CHART_DIR/kube-prometheus-stack" \
-                        --values "$PROMETHEUS_VALUES"
+                        --values "$SNS_RENDERED_VALUES"
 
                     echo "===== HELM TEMPLATE VALIDATION ====="
 
@@ -208,7 +236,7 @@ pipeline {
                     helm template "$PROMETHEUS_RELEASE" \
                         "$CHART_DIR/kube-prometheus-stack" \
                         --namespace "$OBS_NAMESPACE" \
-                        --values "$PROMETHEUS_VALUES" \
+                        --values "$SNS_RENDERED_VALUES" \
                         > "$WORKSPACE/prometheus-rendered.yaml"
 
                     echo "SUCCESS: All three charts validated."
@@ -368,7 +396,7 @@ pipeline {
                     helm upgrade --install "$PROMETHEUS_RELEASE" \
                         "$CHART_DIR/kube-prometheus-stack" \
                         --namespace "$OBS_NAMESPACE" \
-                        --values "$PROMETHEUS_VALUES" \
+                        --values "$SNS_RENDERED_VALUES" \
                         --wait \
                         --timeout 25m
 
