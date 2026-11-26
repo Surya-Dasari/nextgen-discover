@@ -4,24 +4,33 @@ pipeline {
     options {
         timestamps()
         disableConcurrentBuilds()
-        timeout(time: 60, unit: 'MINUTES')
+        timeout(time: 90, unit: 'MINUTES')
         skipDefaultCheckout(true)
     }
 
     environment {
-        AWS_PROFILE       = 'nextgen-jenkins'
+        AWS_PROFILE        = 'nextgen-jenkins'
         AWS_DEFAULT_REGION = 'us-east-2'
-        AWS_REGION        = 'us-east-2'
+        AWS_REGION         = 'us-east-2'
 
-        CLUSTER_NAME      = 'nextgen-discover-eks'
-        OBS_NAMESPACE     = 'observability'
-        HELM_RELEASE      = 'kube-prometheus-stack'
-        CHART_VERSION     = '93.10.1'
-        HELM_REPO_NAME    = 'prometheus-community'
-        HELM_REPO_URL     = 'https://prometheus-community.github.io/helm-charts'
+        CLUSTER_NAME       = 'nextgen-discover-eks'
+        OBS_NAMESPACE      = 'observability'
 
-        VALUES_FILE = 'infrastructure/kubernetes/observability/prometheus/values.yaml'
-        KUBECONFIG = "${WORKSPACE}/.kube/config"
+        OPENSEARCH_RELEASE = 'nextgen-jaeger'
+        OPENSEARCH_VERSION = '3.10.0'
+
+        JAEGER_RELEASE     = 'jaeger'
+        JAEGER_VERSION     = '4.20.0'
+
+        PROMETHEUS_RELEASE = 'kube-prometheus-stack'
+        PROMETHEUS_VERSION = '93.10.1'
+
+        OPENSEARCH_VALUES = 'infrastructure/kubernetes/observability/opensearch/values.yaml'
+        JAEGER_VALUES     = 'infrastructure/kubernetes/observability/jaeger/values.yaml'
+        PROMETHEUS_VALUES = 'infrastructure/kubernetes/observability/prometheus/values.yaml'
+
+        CHART_DIR         = "${WORKSPACE}/.helm"
+        KUBECONFIG        = "${WORKSPACE}/.kube/config"
     }
 
     stages {
@@ -32,7 +41,6 @@ pipeline {
 
                 sh '''
                     set -eu
-
                     echo "===== SOURCE CHECKOUT ====="
                     git rev-parse --short HEAD
                     git branch --show-current
@@ -50,10 +58,12 @@ pipeline {
                     kubectl version --client
                     helm version --short
 
-                    echo "===== REQUIRED FILES ====="
-                    test -f "$VALUES_FILE"
+                    echo "===== REQUIRED CONFIGURATION ====="
+                    test -f "$OPENSEARCH_VALUES"
+                    test -f "$JAEGER_VALUES"
+                    test -f "$PROMETHEUS_VALUES"
 
-                    echo "SUCCESS: Required tools and configuration are available."
+                    echo "SUCCESS: Required tools and values files exist."
                 '''
             }
         }
@@ -66,14 +76,13 @@ pipeline {
                     echo "===== AWS IDENTITY ====="
                     aws sts get-caller-identity
 
-                    echo "===== EKS CLUSTER STATUS ====="
                     CLUSTER_STATUS=$(aws eks describe-cluster \
                         --name "$CLUSTER_NAME" \
                         --region "$AWS_REGION" \
                         --query "cluster.status" \
                         --output text)
 
-                    echo "Cluster status: $CLUSTER_STATUS"
+                    echo "EKS status: $CLUSTER_STATUS"
 
                     if [ "$CLUSTER_STATUS" != "ACTIVE" ]; then
                         echo "ERROR: EKS cluster is not ACTIVE."
@@ -88,104 +97,263 @@ pipeline {
                 sh '''
                     set -eu
 
-                    echo "===== CONFIGURING KUBECONFIG ====="
-
                     mkdir -p "$(dirname "$KUBECONFIG")"
 
                     aws eks update-kubeconfig \
                         --name "$CLUSTER_NAME" \
                         --region "$AWS_REGION" \
-                        --alias nextgen-discover
+                        --alias nextgen-discover \
+                        --kubeconfig "$KUBECONFIG"
 
-                    echo "===== VERIFYING KUBERNETES ACCESS ====="
+                    echo "===== KUBERNETES ACCESS ====="
                     kubectl get nodes
-
-                    kubectl auth can-i get nodes
-                    kubectl auth can-i create deployments \
-                        --namespace "$OBS_NAMESPACE"
 
                     kubectl get namespace "$OBS_NAMESPACE"
 
-                    echo "===== VERIFYING GRAFANA SECRET ====="
-                    kubectl get secret grafana-admin \
+                    kubectl auth can-i create secrets \
                         --namespace "$OBS_NAMESPACE"
 
-                    echo "SUCCESS: Jenkins can access the EKS cluster."
+                    kubectl auth can-i create statefulsets \
+                        --namespace "$OBS_NAMESPACE"
+
+                    kubectl auth can-i create deployments \
+                        --namespace "$OBS_NAMESPACE"
+
+
+                    echo "SUCCESS: EKS access verified."
                 '''
             }
         }
 
         stage('Configure Observability Pod Security') {
             steps {
-                sh """
-                    set -eu
-
-                    echo "===== CONFIGURING OBSERVABILITY POD SECURITY ====="
-
-                    kubectl label namespace "$OBS_NAMESPACE" \\
-                        pod-security.kubernetes.io/enforce=privileged \\
-                        --overwrite
-
-                    kubectl get namespace "$OBS_NAMESPACE" \\
-                        -o jsonpath='{.metadata.labels.pod-security\\.kubernetes\\.io/enforce}'
-
-                    echo ""
-                    echo "Pod Security configuration completed."
-                """
-            }
-        }
-
-        stage('Helm Repository and Validation') {
-            steps {
                 sh '''
                     set -eu
 
-                    echo "===== CONFIGURING HELM REPOSITORY ====="
+                    kubectl label namespace "$OBS_NAMESPACE" \
+                        pod-security.kubernetes.io/enforce=privileged \
+                        --overwrite
 
-                    helm repo add "$HELM_REPO_NAME" "$HELM_REPO_URL" \
-                        --force-update
-
-                    helm repo update "$HELM_REPO_NAME"
-
-                    echo "===== DOWNLOADING PINNED CHART ====="
-
-                    mkdir -p "$WORKSPACE/.helm"
-
-                    helm pull \
-                        "$HELM_REPO_NAME/kube-prometheus-stack" \
-                        --version "$CHART_VERSION" \
-                        --untar \
-                        --untardir "$WORKSPACE/.helm"
-
-                    echo "===== HELM LINT ====="
-
-                    helm lint "$WORKSPACE/.helm/kube-prometheus-stack" \
-                        --values "$VALUES_FILE"
-
-                    echo "===== HELM TEMPLATE VALIDATION ====="
-
-                    helm template "$HELM_RELEASE" \
-                        "$HELM_REPO_NAME/kube-prometheus-stack" \
-                        --version "$CHART_VERSION" \
-                        --namespace "$OBS_NAMESPACE" \
-                        --values "$VALUES_FILE" \
-                        > "$WORKSPACE/kps-rendered.yaml"
-
-                    echo "Rendered resource count:"
-                    grep -c '^kind:' "$WORKSPACE/kps-rendered.yaml"
-
-                    echo "SUCCESS: Helm validation completed."
+                    echo "Observability namespace Pod Security configured."
                 '''
             }
         }
 
-        stage('Approval - Prometheus Stack') {
+        stage('Prepare Helm Charts') {
+            steps {
+                sh '''
+                    set -eu
+
+                    echo "===== CONFIGURING HELM REPOSITORIES ====="
+
+                    helm repo add opensearch \
+                        https://opensearch-project.github.io/helm-charts/ \
+                        --force-update
+
+                    helm repo add jaegertracing \
+                        https://jaegertracing.github.io/helm-charts \
+                        --force-update
+
+                    helm repo add prometheus-community \
+                        https://prometheus-community.github.io/helm-charts \
+                        --force-update
+
+                    helm repo update
+
+                    echo "===== DOWNLOADING PINNED CHARTS ====="
+
+                    rm -rf "$CHART_DIR"
+                    mkdir -p "$CHART_DIR"
+
+                    helm pull opensearch/opensearch \
+                        --version "$OPENSEARCH_VERSION" \
+                        --untar \
+                        --untardir "$CHART_DIR"
+
+                    helm pull jaegertracing/jaeger \
+                        --version "$JAEGER_VERSION" \
+                        --untar \
+                        --untardir "$CHART_DIR"
+
+                    helm pull prometheus-community/kube-prometheus-stack \
+                        --version "$PROMETHEUS_VERSION" \
+                        --untar \
+                        --untardir "$CHART_DIR"
+
+                    echo "===== HELM LINT ====="
+
+                    helm lint "$CHART_DIR/opensearch" \
+                        --values "$OPENSEARCH_VALUES"
+
+                    helm lint "$CHART_DIR/jaeger" \
+                        --values "$JAEGER_VALUES"
+
+                    helm lint "$CHART_DIR/kube-prometheus-stack" \
+                        --values "$PROMETHEUS_VALUES"
+
+                    echo "===== HELM TEMPLATE VALIDATION ====="
+
+                    helm template "$OPENSEARCH_RELEASE" \
+                        "$CHART_DIR/opensearch" \
+                        --namespace "$OBS_NAMESPACE" \
+                        --values "$OPENSEARCH_VALUES" \
+                        > "$WORKSPACE/opensearch-rendered.yaml"
+
+                    helm template "$JAEGER_RELEASE" \
+                        "$CHART_DIR/jaeger" \
+                        --namespace "$OBS_NAMESPACE" \
+                        --values "$JAEGER_VALUES" \
+                        > "$WORKSPACE/jaeger-rendered.yaml"
+
+                    helm template "$PROMETHEUS_RELEASE" \
+                        "$CHART_DIR/kube-prometheus-stack" \
+                        --namespace "$OBS_NAMESPACE" \
+                        --values "$PROMETHEUS_VALUES" \
+                        > "$WORKSPACE/prometheus-rendered.yaml"
+
+                    echo "SUCCESS: All three charts validated."
+                '''
+            }
+        }
+
+        stage('Approval - Observability Stack') {
             steps {
                 script {
                     input(
-                        message: 'Approve deployment of Prometheus, Grafana and Alertmanager to EKS?',
+                        message: 'Approve OpenSearch, Jaeger and Prometheus stack deployment?',
                         ok: 'Deploy Observability Stack'
                     )
+                }
+            }
+        }
+
+        stage('Create OpenSearch Kubernetes Secret') {
+            steps {
+                script {
+                    withCredentials([
+                        string(
+                            credentialsId: 'opensearch-admin-password',
+                            variable: 'OPENSEARCH_ADMIN_PASSWORD'
+                        )
+                    ]) {
+                        sh '''
+                            set +x
+                            set -eu
+                            umask 077
+
+                            echo "===== CREATING OPENSEARCH SECRET ====="
+
+                            SECRET_DIR=$(mktemp -d)
+                            trap 'rm -rf "$SECRET_DIR"' EXIT
+
+                            SECRET_FILE="$SECRET_DIR/opensearch-password"
+
+                            printf '%s' "$OPENSEARCH_ADMIN_PASSWORD" \
+                                > "$SECRET_FILE"
+
+                            kubectl create secret generic opensearch-admin \
+                                --namespace "$OBS_NAMESPACE" \
+                                --from-file=OPENSEARCH_INITIAL_ADMIN_PASSWORD="$SECRET_FILE" \
+                                --dry-run=client \
+                                -o yaml | kubectl apply -f -
+
+                            unset OPENSEARCH_ADMIN_PASSWORD
+
+                            echo "SUCCESS: OpenSearch Kubernetes Secret configured."
+                        '''
+                    }
+                }
+            }
+        }
+
+        stage('Deploy OpenSearch') {
+            steps {
+                sh '''
+                    set -eu
+
+                    echo "===== DEPLOYING OPENSEARCH ====="
+
+                    helm upgrade --install "$OPENSEARCH_RELEASE" \
+                        "$CHART_DIR/opensearch" \
+                        --namespace "$OBS_NAMESPACE" \
+                        --values "$OPENSEARCH_VALUES" \
+                        --wait \
+                        --timeout 25m
+
+                    echo "===== VERIFYING OPENSEARCH STATEFULSET ====="
+
+                    kubectl rollout status \
+                        statefulset/nextgen-jaeger-master \
+                        --namespace "$OBS_NAMESPACE" \
+                        --timeout=20m
+
+                    kubectl get service nextgen-jaeger-master \
+                        --namespace "$OBS_NAMESPACE"
+
+                    echo "SUCCESS: OpenSearch deployment completed."
+                '''
+            }
+        }
+
+        stage('Deploy Jaeger') {
+            steps {
+                sh '''
+                    set -eu
+
+                    echo "===== DEPLOYING JAEGER ====="
+
+                    helm upgrade --install "$JAEGER_RELEASE" \
+                        "$CHART_DIR/jaeger" \
+                        --namespace "$OBS_NAMESPACE" \
+                        --values "$JAEGER_VALUES" \
+                        --wait \
+                        --timeout 15m
+
+                    echo "===== VERIFYING JAEGER DEPLOYMENT ====="
+
+                    kubectl rollout status deployment/jaeger \
+                        --namespace "$OBS_NAMESPACE" \
+                        --timeout=10m
+
+                    echo "SUCCESS: Jaeger deployment completed."
+                '''
+            }
+        }
+
+        stage('Create Grafana Kubernetes Secret') {
+            steps {
+                script {
+                    withCredentials([
+                        string(
+                            credentialsId: 'grafana-admin-password',
+                            variable: 'GRAFANA_ADMIN_PASSWORD'
+                        )
+                    ]) {
+                        sh '''
+                            set +x
+                            set -eu
+                            umask 077
+
+                            echo "===== CREATING GRAFANA SECRET ====="
+
+                            SECRET_DIR=$(mktemp -d)
+                            trap 'rm -rf "$SECRET_DIR"' EXIT
+
+                            printf '%s' "admin" > "$SECRET_DIR/admin-user"
+                            printf '%s' "$GRAFANA_ADMIN_PASSWORD" > "$SECRET_DIR/admin-password"
+
+                            kubectl create secret generic grafana-admin \
+                                --namespace "$OBS_NAMESPACE" \
+                                --from-file=admin-user="$SECRET_DIR/admin-user" \
+                                --from-file=admin-password="$SECRET_DIR/admin-password" \
+                                --dry-run=client \
+                                -o yaml | kubectl apply -f -
+
+                            unset GRAFANA_ADMIN_PASSWORD
+
+                            echo "SUCCESS: Grafana Kubernetes Secret configured."
+                        '''
+                    }
                 }
             }
         }
@@ -195,17 +363,16 @@ pipeline {
                 sh '''
                     set -eu
 
-                    echo "===== DEPLOYING KUBE-PROMETHEUS-STACK ====="
+                    echo "===== DEPLOYING PROMETHEUS STACK ====="
 
-                    helm upgrade --install "$HELM_RELEASE" \
-                        "$HELM_REPO_NAME/kube-prometheus-stack" \
-                        --version "$CHART_VERSION" \
+                    helm upgrade --install "$PROMETHEUS_RELEASE" \
+                        "$CHART_DIR/kube-prometheus-stack" \
                         --namespace "$OBS_NAMESPACE" \
-                        --values "$VALUES_FILE" \
+                        --values "$PROMETHEUS_VALUES" \
                         --wait \
-                        --timeout 20m
+                        --timeout 25m
 
-                    echo "SUCCESS: Helm deployment completed."
+                    echo "SUCCESS: Prometheus stack deployment completed."
                 '''
             }
         }
@@ -248,11 +415,18 @@ pipeline {
                             --timeout=10m
                     done
 
-                    echo "===== POD STATUS ====="
-                    kubectl get pods -n "$OBS_NAMESPACE" -o wide
+                    echo "===== POD STATUS AND NODE PLACEMENT ====="
+                    kubectl get pods \
+                        --namespace "$OBS_NAMESPACE" \
+                        -o wide
 
                     echo "===== PERSISTENT VOLUME CLAIMS ====="
-                    kubectl get pvc -n "$OBS_NAMESPACE"
+                    kubectl get pvc \
+                        --namespace "$OBS_NAMESPACE"
+
+                    echo "===== OPENSEARCH SERVICE ====="
+                    kubectl get service nextgen-jaeger-master \
+                        --namespace "$OBS_NAMESPACE"
 
                     echo "SUCCESS: Observability deployment verification completed."
                 '''
@@ -262,7 +436,7 @@ pipeline {
 
     post {
         success {
-            echo 'Pipeline 3: Prometheus, Grafana and Alertmanager deployment completed.'
+            echo 'Pipeline 3: OpenSearch, Jaeger, Prometheus, Grafana and Alertmanager deployment completed.'
         }
 
         failure {

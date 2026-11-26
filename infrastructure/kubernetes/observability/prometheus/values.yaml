@@ -10,6 +10,13 @@ defaultRules:
 prometheus:
   enabled: true
   prometheusSpec:
+    nodeSelector:
+      workload: observability
+    tolerations:
+      - key: dedicated
+        operator: Equal
+        value: observability
+        effect: NoSchedule
     replicas: 1
     retention: 15d
     retentionSize: 40GiB
@@ -52,6 +59,13 @@ prometheus:
     type: ClusterIP
 
 grafana:
+  nodeSelector:
+    workload: observability
+  tolerations:
+    - key: dedicated
+      operator: Equal
+      value: observability
+      effect: NoSchedule
   enabled: true
   replicas: 1
 
@@ -128,6 +142,13 @@ alertmanager:
   enabled: true
 
   alertmanagerSpec:
+    nodeSelector:
+      workload: observability
+    tolerations:
+      - key: dedicated
+        operator: Equal
+        value: observability
+        effect: NoSchedule
     replicas: 1
     retention: 120h
 
@@ -156,12 +177,41 @@ alertmanager:
     type: ClusterIP
 
 nodeExporter:
+  tolerations:
+    - key: dedicated
+      operator: Equal
+      value: observability
+      effect: NoSchedule
   enabled: true
 
 kube-state-metrics:
+  nodeSelector:
+    workload: observability
+  tolerations:
+    - key: dedicated
+      operator: Equal
+      value: observability
+      effect: NoSchedule
   enabled: true
 
 prometheusOperator:
+  admissionWebhooks:
+    patch:
+      nodeSelector:
+        kubernetes.io/os: linux
+        workload: observability
+      tolerations:
+        - key: dedicated
+          operator: Equal
+          value: observability
+          effect: NoSchedule
+  nodeSelector:
+    workload: observability
+  tolerations:
+    - key: dedicated
+      operator: Equal
+      value: observability
+      effect: NoSchedule
   enabled: true
   resources:
     requests:

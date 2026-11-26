@@ -1,0 +1,85 @@
+# NextGen Discover - Jaeger v2
+# Helm chart: jaegertracing/jaeger
+# Chart version: 4.20.0
+# Application version: 2.23.0
+
+jaeger:
+  enabled: true
+  replicas: 1
+
+  nodeSelector:
+    workload: observability
+
+  tolerations:
+    - key: dedicated
+      operator: Equal
+      value: observability
+      effect: NoSchedule
+
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+  extraEnv:
+    - name: OPENSEARCH_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: opensearch-admin
+          key: OPENSEARCH_INITIAL_ADMIN_PASSWORD
+
+userconfig:
+  service:
+    extensions:
+      - jaeger_storage
+      - jaeger_query
+      - healthcheckv2
+    pipelines:
+      traces:
+        receivers:
+          - otlp
+        processors:
+          - batch
+        exporters:
+          - jaeger_storage_exporter
+
+  extensions:
+    healthcheckv2:
+      use_v2: true
+      http:
+        endpoint: 0.0.0.0:13133
+
+    jaeger_query:
+      storage:
+        traces: primary_store
+
+    jaeger_storage:
+      backends:
+        primary_store:
+          opensearch:
+            server_urls:
+              - https://nextgen-jaeger-master.observability.svc.cluster.local:9200
+            tls:
+              insecure_skip_verify: true
+            auth:
+              basic:
+                username: admin
+                password: ${env:OPENSEARCH_PASSWORD}
+
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317
+        http:
+          endpoint: 0.0.0.0:4318
+
+  processors:
+    batch: {}
+
+  exporters:
+    jaeger_storage_exporter:
+      trace_storage: primary_store

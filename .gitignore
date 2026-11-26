@@ -66,3 +66,6 @@ app.jar
 
 # Terraform backend configuration
 /infrastructure/terraform/infrastructure/backend.hcl
+
+# Downloaded Helm charts (retrieved by Jenkins pipeline)
+infrastructure/helm/charts/

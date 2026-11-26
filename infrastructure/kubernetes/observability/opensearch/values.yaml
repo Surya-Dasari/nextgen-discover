@@ -1,0 +1,77 @@
+# NextGen Discover - OpenSearch
+# Pipeline 3: Observability Engineering
+# Helm chart: opensearch/opensearch
+# Chart version: 3.10.0
+
+clusterName: nextgen-jaeger
+nodeGroup: master
+masterService: nextgen-jaeger-master
+
+singleNode: true
+
+nodeSelector:
+  workload: observability
+
+tolerations:
+  - key: dedicated
+    operator: Equal
+    value: observability
+    effect: NoSchedule
+replicas: 1
+
+roles:
+  - master
+  - ingest
+  - data
+  - remote_cluster_client
+
+# OpenSearch initial admin password is supplied through a Kubernetes Secret.
+# Required Secret: opensearch-admin
+# Required Secret key: OPENSEARCH_INITIAL_ADMIN_PASSWORD
+envFrom:
+  - secretRef:
+      name: opensearch-admin
+
+opensearchJavaOpts: "-Xms1g -Xmx1g"
+
+resources:
+  requests:
+    cpu: "1000m"
+    memory: "2Gi"
+  limits:
+    cpu: "2000m"
+    memory: "2Gi"
+
+persistence:
+  enabled: true
+  enableInitChown: true
+  storageClass: gp3
+  accessModes:
+    - ReadWriteOnce
+  size: 20Gi
+
+protocol: https
+httpPort: 9200
+transportPort: 9300
+
+service:
+  type: ClusterIP
+
+securityConfig:
+  enabled: true
+
+podSecurityContext:
+  fsGroup: 1000
+  runAsUser: 1000
+
+securityContext:
+  capabilities:
+    drop:
+      - ALL
+  runAsNonRoot: true
+  runAsUser: 1000
+
+ingress:
+  enabled: false
+
+# OpenSearch should only be reachable inside the cluster.
