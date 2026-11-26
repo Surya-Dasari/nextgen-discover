@@ -24,6 +24,8 @@ pipeline {
 
         ARGOCD_VERSION = '10.18.2'
         ARGOCD_NAMESPACE = 'argocd'
+
+        METRICS_SERVER_MANIFEST = 'infrastructure/kubernetes/platform/metrics-server/components.yaml'
     }
 
     stages {
@@ -173,6 +175,66 @@ pipeline {
                     kubectl get storageclass gp3
 
                     echo "SUCCESS: gp3 StorageClass configured."
+                '''
+            }
+        }
+
+        stage('Install Metrics Server') {
+            steps {
+                sh '''
+                    set -eu
+
+                    echo "===== INSTALLING METRICS SERVER ====="
+
+                    if [ ! -f "$METRICS_SERVER_MANIFEST" ]; then
+                        echo "ERROR: Metrics Server manifest not found."
+                        exit 1
+                    fi
+
+                    kubectl apply -f "$METRICS_SERVER_MANIFEST"
+
+                    kubectl rollout status \
+                      deployment/metrics-server \
+                      --namespace kube-system \
+                      --timeout=5m
+
+                    echo "SUCCESS: Metrics Server deployment is ready."
+                '''
+            }
+        }
+
+        stage('Validate Metrics API') {
+            steps {
+                sh '''
+                    set -eu
+
+                    echo "===== VALIDATING METRICS API ====="
+
+                    kubectl wait \
+                      --for=condition=Available \
+                      apiservice/v1beta1.metrics.k8s.io \
+                      --timeout=5m
+
+                    echo "===== CHECKING NODE METRICS ====="
+
+                    ATTEMPT=1
+                    MAX_ATTEMPTS=12
+
+                    until kubectl top nodes; do
+                        if [ "$ATTEMPT" -ge "$MAX_ATTEMPTS" ]; then
+                            echo "ERROR: Metrics API did not return node metrics."
+                            exit 1
+                        fi
+
+                        echo "Metrics not ready yet. Retry $ATTEMPT/$MAX_ATTEMPTS."
+                        ATTEMPT=$((ATTEMPT + 1))
+                        sleep 10
+                    done
+
+                    echo "===== CHECKING POD METRICS ====="
+                    kubectl top pods -n kube-system
+
+                    echo "SUCCESS: Metrics API is operational."
                 '''
             }
         }
@@ -461,7 +523,7 @@ pipeline {
 
     post {
         success {
-            echo 'Platform pipeline completed successfully through Kafka and Istio deployment.'
+            echo 'Platform pipeline completed successfully through Metrics Server, Kafka, Istio, and Argo CD deployment.'
         }
 
         failure {
