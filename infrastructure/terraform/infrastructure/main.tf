@@ -341,3 +341,29 @@ module "sns_alerts" {
     module.eks
   ]
 }
+
+# --------------------------------------------------
+# Loki S3 Storage and EKS Pod Identity
+# --------------------------------------------------
+
+module "loki_storage" {
+  source = "../modules/loki-storage"
+
+  project_name = var.project_name
+  aws_region   = var.aws_region
+
+  cluster_name = module.eks.cluster_name
+  cluster_arn  = module.eks.cluster_arn
+
+  namespace       = "observability"
+  service_account = "loki"
+
+  tags = {
+    Project   = var.project_name
+    Component = "observability"
+  }
+
+  depends_on = [
+    module.eks
+  ]
+}
