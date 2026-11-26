@@ -33,6 +33,7 @@ pipeline {
         TF_VAR_github_repository     = "${params.GITHUB_REPOSITORY}"
         TF_VAR_github_repository_id  = "${params.GITHUB_REPOSITORY_ID}"
         TF_VAR_github_branch         = "${params.GITHUB_BRANCH}"
+        TF_VAR_additional_eks_admin_principal_arns = '["arn:aws:iam::659071697866:user/suryanarayana"]'
     }
 
     stages {

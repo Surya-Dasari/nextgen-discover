@@ -105,3 +105,37 @@ variable "cluster_admin_principal_arns" {
   type        = set(string)
   default     = []
 }
+
+# --------------------------------------------------
+# EKS Observability Node Group Variables
+# --------------------------------------------------
+
+variable "observability_node_instance_types" {
+  description = "EC2 instance types for the dedicated observability node group"
+  type        = list(string)
+  default     = ["m7i-flex.large"]
+}
+
+variable "observability_node_desired_size" {
+  description = "Desired number of observability worker nodes"
+  type        = number
+  default     = 2
+}
+
+variable "observability_node_min_size" {
+  description = "Minimum number of observability worker nodes"
+  type        = number
+  default     = 1
+}
+
+variable "observability_node_max_size" {
+  description = "Maximum number of observability worker nodes"
+  type        = number
+  default     = 2
+}
+
+variable "observability_node_disk_size" {
+  description = "Observability worker root volume size in GiB"
+  type        = number
+  default     = 30
+}

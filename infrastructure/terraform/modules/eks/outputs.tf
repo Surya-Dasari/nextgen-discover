@@ -48,3 +48,13 @@ output "aws_load_balancer_controller_role_arn" {
   description = "IAM role ARN for AWS Load Balancer Controller"
   value       = aws_iam_role.aws_load_balancer_controller.arn
 }
+
+output "observability_node_group_arn" {
+  description = "ARN of the dedicated EKS observability managed node group"
+  value       = aws_eks_node_group.observability.arn
+}
+
+output "observability_node_group_status" {
+  description = "Status of the dedicated EKS observability managed node group"
+  value       = aws_eks_node_group.observability.status
+}

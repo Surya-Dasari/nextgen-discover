@@ -96,3 +96,53 @@ resource "aws_eks_access_policy_association" "cluster_admin" {
     type = "cluster"
   }
 }
+
+# --------------------------------------------------
+# EKS Observability Managed Node Group
+# --------------------------------------------------
+
+resource "aws_eks_node_group" "observability" {
+  cluster_name    = aws_eks_cluster.main.name
+  node_group_name = "${var.project_name}-observability-workers"
+  node_role_arn   = var.node_role_arn
+  subnet_ids      = var.node_subnet_ids
+
+  instance_types = var.observability_node_instance_types
+  capacity_type  = "ON_DEMAND"
+
+  launch_template {
+    id      = aws_launch_template.observability_workers.id
+    version = aws_launch_template.observability_workers.latest_version
+  }
+
+  scaling_config {
+    desired_size = var.observability_node_desired_size
+    min_size     = var.observability_node_min_size
+    max_size     = var.observability_node_max_size
+  }
+
+  update_config {
+    max_unavailable = 1
+  }
+
+  labels = {
+    Project  = var.project_name
+    Role     = "observability"
+    workload = "observability"
+  }
+
+  taint {
+    key    = "dedicated"
+    value  = "observability"
+    effect = "NO_SCHEDULE"
+  }
+
+  tags = merge(var.tags, {
+    Name      = "${var.project_name}-observability-workers"
+    Component = "EKS-Observability"
+  })
+
+  depends_on = [
+    aws_eks_addon.vpc_cni
+  ]
+}

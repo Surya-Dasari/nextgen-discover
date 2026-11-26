@@ -196,6 +196,13 @@ module "eks" {
   node_max_size     = 5
   node_disk_size    = 30
 
+  # Dedicated observability worker group
+  observability_node_instance_types = ["m7i-flex.large"]
+  observability_node_min_size       = 1
+  observability_node_desired_size   = 2
+  observability_node_max_size       = 2
+  observability_node_disk_size      = 30
+
   tags = {
     Project = var.project_name
   }
