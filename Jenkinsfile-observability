@@ -1,0 +1,256 @@
+pipeline {
+    agent any
+
+    options {
+        timestamps()
+        disableConcurrentBuilds()
+        timeout(time: 60, unit: 'MINUTES')
+        skipDefaultCheckout(true)
+    }
+
+    environment {
+        AWS_PROFILE       = 'nextgen-jenkins'
+        AWS_DEFAULT_REGION = 'us-east-2'
+        AWS_REGION        = 'us-east-2'
+
+        CLUSTER_NAME      = 'nextgen-discover-eks'
+        OBS_NAMESPACE     = 'observability'
+        HELM_RELEASE      = 'kube-prometheus-stack'
+        CHART_VERSION     = '93.10.1'
+        HELM_REPO_NAME    = 'prometheus-community'
+        HELM_REPO_URL     = 'https://prometheus-community.github.io/helm-charts'
+
+        VALUES_FILE = 'infrastructure/kubernetes/observability/prometheus/values.yaml'
+        KUBECONFIG = "${WORKSPACE}/.kube/config"
+    }
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                checkout scm
+
+                sh '''
+                    set -eu
+
+                    echo "===== SOURCE CHECKOUT ====="
+                    git rev-parse --short HEAD
+                    git branch --show-current
+                '''
+            }
+        }
+
+        stage('Environment Checks') {
+            steps {
+                sh '''
+                    set -eu
+
+                    echo "===== TOOL VERSIONS ====="
+                    aws --version
+                    kubectl version --client
+                    helm version --short
+
+                    echo "===== REQUIRED FILES ====="
+                    test -f "$VALUES_FILE"
+
+                    echo "SUCCESS: Required tools and configuration are available."
+                '''
+            }
+        }
+
+        stage('AWS Authentication') {
+            steps {
+                sh '''
+                    set -eu
+
+                    echo "===== AWS IDENTITY ====="
+                    aws sts get-caller-identity
+
+                    echo "===== EKS CLUSTER STATUS ====="
+                    CLUSTER_STATUS=$(aws eks describe-cluster \
+                        --name "$CLUSTER_NAME" \
+                        --region "$AWS_REGION" \
+                        --query "cluster.status" \
+                        --output text)
+
+                    echo "Cluster status: $CLUSTER_STATUS"
+
+                    if [ "$CLUSTER_STATUS" != "ACTIVE" ]; then
+                        echo "ERROR: EKS cluster is not ACTIVE."
+                        exit 1
+                    fi
+                '''
+            }
+        }
+
+        stage('Configure EKS Access') {
+            steps {
+                sh '''
+                    set -eu
+
+                    echo "===== CONFIGURING KUBECONFIG ====="
+
+                    mkdir -p "$(dirname "$KUBECONFIG")"
+
+                    aws eks update-kubeconfig \
+                        --name "$CLUSTER_NAME" \
+                        --region "$AWS_REGION" \
+                        --alias nextgen-discover
+
+                    echo "===== VERIFYING KUBERNETES ACCESS ====="
+                    kubectl get nodes
+
+                    kubectl auth can-i get nodes
+                    kubectl auth can-i create deployments \
+                        --namespace "$OBS_NAMESPACE"
+
+                    kubectl get namespace "$OBS_NAMESPACE"
+
+                    echo "===== VERIFYING GRAFANA SECRET ====="
+                    kubectl get secret grafana-admin \
+                        --namespace "$OBS_NAMESPACE"
+
+                    echo "SUCCESS: Jenkins can access the EKS cluster."
+                '''
+            }
+        }
+
+        stage('Helm Repository and Validation') {
+            steps {
+                sh '''
+                    set -eu
+
+                    echo "===== CONFIGURING HELM REPOSITORY ====="
+
+                    helm repo add "$HELM_REPO_NAME" "$HELM_REPO_URL" \
+                        --force-update
+
+                    helm repo update "$HELM_REPO_NAME"
+
+                    echo "===== DOWNLOADING PINNED CHART ====="
+
+                    mkdir -p "$WORKSPACE/.helm"
+
+                    helm pull \
+                        "$HELM_REPO_NAME/kube-prometheus-stack" \
+                        --version "$CHART_VERSION" \
+                        --untar \
+                        --untardir "$WORKSPACE/.helm"
+
+                    echo "===== HELM LINT ====="
+
+                    helm lint "$WORKSPACE/.helm/kube-prometheus-stack" \
+                        --values "$VALUES_FILE"
+
+                    echo "===== HELM TEMPLATE VALIDATION ====="
+
+                    helm template "$HELM_RELEASE" \
+                        "$HELM_REPO_NAME/kube-prometheus-stack" \
+                        --version "$CHART_VERSION" \
+                        --namespace "$OBS_NAMESPACE" \
+                        --values "$VALUES_FILE" \
+                        > "$WORKSPACE/kps-rendered.yaml"
+
+                    echo "Rendered resource count:"
+                    grep -c '^kind:' "$WORKSPACE/kps-rendered.yaml"
+
+                    echo "SUCCESS: Helm validation completed."
+                '''
+            }
+        }
+
+        stage('Approval - Prometheus Stack') {
+            steps {
+                script {
+                    input(
+                        message: 'Approve deployment of Prometheus, Grafana and Alertmanager to EKS?',
+                        ok: 'Deploy Observability Stack'
+                    )
+                }
+            }
+        }
+
+        stage('Deploy Prometheus Stack') {
+            steps {
+                sh '''
+                    set -eu
+
+                    echo "===== DEPLOYING KUBE-PROMETHEUS-STACK ====="
+
+                    helm upgrade --install "$HELM_RELEASE" \
+                        "$HELM_REPO_NAME/kube-prometheus-stack" \
+                        --version "$CHART_VERSION" \
+                        --namespace "$OBS_NAMESPACE" \
+                        --values "$VALUES_FILE" \
+                        --wait \
+                        --timeout 20m
+
+                    echo "SUCCESS: Helm deployment completed."
+                '''
+            }
+        }
+
+        stage('Deployment Verification') {
+            steps {
+                sh '''
+                    set -eu
+
+                    echo "===== VERIFYING DEPLOYMENTS ====="
+
+                    for deployment in $(kubectl get deployments \
+                        --namespace "$OBS_NAMESPACE" \
+                        -o jsonpath='{.items[*].metadata.name}'); do
+
+                        kubectl rollout status "deployment/$deployment" \
+                            --namespace "$OBS_NAMESPACE" \
+                            --timeout=10m
+                    done
+
+                    echo "===== VERIFYING STATEFULSETS ====="
+
+                    for statefulset in $(kubectl get statefulsets \
+                        --namespace "$OBS_NAMESPACE" \
+                        -o jsonpath='{.items[*].metadata.name}'); do
+
+                        kubectl rollout status "statefulset/$statefulset" \
+                            --namespace "$OBS_NAMESPACE" \
+                            --timeout=10m
+                    done
+
+                    echo "===== VERIFYING DAEMONSETS ====="
+
+                    for daemonset in $(kubectl get daemonsets \
+                        --namespace "$OBS_NAMESPACE" \
+                        -o jsonpath='{.items[*].metadata.name}'); do
+
+                        kubectl rollout status "daemonset/$daemonset" \
+                            --namespace "$OBS_NAMESPACE" \
+                            --timeout=10m
+                    done
+
+                    echo "===== POD STATUS ====="
+                    kubectl get pods -n "$OBS_NAMESPACE" -o wide
+
+                    echo "===== PERSISTENT VOLUME CLAIMS ====="
+                    kubectl get pvc -n "$OBS_NAMESPACE"
+
+                    echo "SUCCESS: Observability deployment verification completed."
+                '''
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'Pipeline 3: Prometheus, Grafana and Alertmanager deployment completed.'
+        }
+
+        failure {
+            echo 'Pipeline 3 failed. Review the failed stage and Jenkins console output.'
+        }
+
+        always {
+            echo 'Observability pipeline execution finished.'
+        }
+    }
+}
