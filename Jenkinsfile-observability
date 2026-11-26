@@ -115,6 +115,26 @@ pipeline {
             }
         }
 
+        stage('Configure Observability Pod Security') {
+            steps {
+                sh """
+                    set -eu
+
+                    echo "===== CONFIGURING OBSERVABILITY POD SECURITY ====="
+
+                    kubectl label namespace "$OBS_NAMESPACE" \\
+                        pod-security.kubernetes.io/enforce=privileged \\
+                        --overwrite
+
+                    kubectl get namespace "$OBS_NAMESPACE" \\
+                        -o jsonpath='{.metadata.labels.pod-security\\.kubernetes\\.io/enforce}'
+
+                    echo ""
+                    echo "Pod Security configuration completed."
+                """
+            }
+        }
+
         stage('Helm Repository and Validation') {
             steps {
                 sh '''
