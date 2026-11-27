@@ -7,7 +7,8 @@ WORKDIR /app
 
 RUN pip install --no-cache-dir \
     boto3 \
-    "psycopg[binary]"
+    "psycopg[binary]" \
+    "kubernetes==31.0.0"
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates curl \

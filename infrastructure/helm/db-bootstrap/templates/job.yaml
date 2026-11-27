@@ -9,6 +9,7 @@ metadata:
   annotations:
     nextgen-discover.io/rds-resource-id: {{ .Values.database.instanceGeneration | quote }}
     argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/sync-wave: "0"
     argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
 spec:
   backoffLimit: {{ .Values.job.backoffLimit }}
@@ -54,5 +55,9 @@ spec:
               value: {{ join "," .Values.database.names | quote }}
             - name: DB_CONNECT_ATTEMPTS
               value: "12"
+            - name: KUBERNETES_NAMESPACE
+              value: {{ .Release.Namespace | quote }}
+            - name: DB_SERVICE_CONFIG
+              value: {{ .Values.services | toJson | quote }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}

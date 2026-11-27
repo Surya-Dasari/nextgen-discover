@@ -40,6 +40,36 @@ resource "aws_iam_role" "database_bootstrap" {
 }
 
 # --------------------------------------------------
+# Application Database Credential Secret Containers
+# --------------------------------------------------
+
+data "aws_secretsmanager_secret" "catalogue_db_credentials" {
+  name = "${var.project_name}/catalogue/db-credentials"
+}
+
+resource "aws_secretsmanager_secret" "userservice_db_credentials" {
+  name        = "${var.project_name}/userservice/db-credentials"
+  description = "User Service PostgreSQL credentials"
+
+  tags = {
+    Project   = var.project_name
+    Component = "userservice-database"
+    ManagedBy = "Terraform"
+  }
+}
+
+resource "aws_secretsmanager_secret" "notificationservice_db_credentials" {
+  name        = "${var.project_name}/notificationservice/db-credentials"
+  description = "Notification Service PostgreSQL credentials"
+
+  tags = {
+    Project   = var.project_name
+    Component = "notificationservice-database"
+    ManagedBy = "Terraform"
+  }
+}
+
+# --------------------------------------------------
 # Secrets Manager and KMS Permissions
 # --------------------------------------------------
 
@@ -58,7 +88,24 @@ resource "aws_iam_role_policy" "database_bootstrap" {
           "secretsmanager:GetSecretValue"
         ]
 
-        Resource = module.rds.master_user_secret_arn
+        Resource = [
+          module.rds.master_user_secret_arn,
+          data.aws_secretsmanager_secret.catalogue_db_credentials.arn,
+          aws_secretsmanager_secret.userservice_db_credentials.arn,
+          aws_secretsmanager_secret.notificationservice_db_credentials.arn
+        ]
+      },
+      {
+        Effect = "Allow"
+
+        Action = [
+          "secretsmanager:PutSecretValue"
+        ]
+
+        Resource = [
+          aws_secretsmanager_secret.userservice_db_credentials.arn,
+          aws_secretsmanager_secret.notificationservice_db_credentials.arn
+        ]
       },
       {
         Effect = "Allow"

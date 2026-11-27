@@ -16,19 +16,7 @@ spec:
         karpenter.sh/discovery: nextgen-discover-eks
 
   # Discover only the tagged EKS worker security group.
+  # Select the worker SG and EKS-managed cluster SG.
   securityGroupSelectorTerms:
-    - tags:
-        karpenter.sh/discovery: nextgen-discover-eks
-
-  # Use encrypted gp3 root volumes.
-  blockDeviceMappings:
-    - deviceName: /dev/xvda
-      ebs:
-        volumeSize: 30Gi
-        volumeType: gp3
-        encrypted: true
-        deleteOnTermination: true
-
-  tags:
-    Project: nextgen-discover
-    ManagedBy: Karpenter
+    - id: sg-0363d7da2cd2352ad
+    - id: sg-094e149ad07ea5979

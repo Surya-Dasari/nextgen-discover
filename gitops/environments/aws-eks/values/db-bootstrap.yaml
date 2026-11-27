@@ -7,7 +7,7 @@ database:
   host: nextgen-discover-postgres.cn0w84e2itpi.us-east-2.rds.amazonaws.com
   port: 5432
   adminDatabase: postgres
-  instanceGeneration: db-WKK3B7LB7EH55DTBIGBYBMPLHQ
+  instanceGeneration: db-LE6QYOKRKEASRXEJ6AYI2CREWE
   names:
     - nextgendiscover
     - nextgendiscover_catalogue
@@ -20,3 +20,23 @@ image:
   repository: 659071697866.dkr.ecr.us-east-2.amazonaws.com/nextgen-discover/database-bootstrap
   tag: latest
   pullPolicy: Always
+
+services:
+  - name: userservice
+    database: nextgendiscover
+    schema: userservice
+    role: userservice
+    secretName: nextgen-discover/userservice/db-credentials
+    kubernetesSecret: userservice-db
+  - name: catalogueservice
+    database: nextgendiscover_catalogue
+    schema: catalogueservice
+    role: catalogue_app
+    secretName: nextgen-discover/catalogue/db-credentials
+    kubernetesSecret: catalogueservice-db
+  - name: notificationservice
+    database: nextgendiscover
+    schema: notificationservice
+    role: notificationservice
+    secretName: nextgen-discover/notificationservice/db-credentials
+    kubernetesSecret: notificationservice-db
