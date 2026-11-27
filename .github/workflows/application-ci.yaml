@@ -398,3 +398,5 @@ jobs:
 
           git commit -m "chore(gitops): update rollout revision [skip ci]"
           git push origin HEAD:dev
+
+  workflow_dispatch:
