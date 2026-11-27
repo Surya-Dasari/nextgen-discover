@@ -14,7 +14,7 @@ database:
 
 aws:
   region: us-east-2
-  secretArn: arn:aws:secretsmanager:us-east-2:659071697866:secret:rds!db-6f8927ac-5e7c-4d3b-a816-23e33cdcd7fc-f52lvL
+  secretArn: arn:aws:secretsmanager:us-east-2:659071697866:secret:rds!db-5482262c-fcdc-4d48-9c69-0bba0a1446e4-zVbLNv
 
 image:
   repository: 659071697866.dkr.ecr.us-east-2.amazonaws.com/nextgen-discover/database-bootstrap
