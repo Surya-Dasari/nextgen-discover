@@ -13,6 +13,8 @@ on:
     paths-ignore:
       - gitops/environments/aws-eks/values/rollout.yaml
 
+  workflow_dispatch:
+
 permissions:
   contents: read
 
@@ -398,5 +400,3 @@ jobs:
 
           git commit -m "chore(gitops): update rollout revision [skip ci]"
           git push origin HEAD:dev
-
-  workflow_dispatch:
